@@ -200,11 +200,6 @@ if __name__ == "__main__":
     DR_ROOT = os.path.realpath(sys.argv[1])
     TARGETS = sys.argv[2:]
 
-    print DR_ROOT
-    print TARGETS
-
-    exit(0)
-
     # Initialize global variables
     bld_dir = "build" + "_".join(TARGETS)
     BLD_DIR = os.path.join(DR_ROOT, bld_dir)
@@ -233,9 +228,15 @@ if __name__ == "__main__":
     copy_files_to_tempsrc(DR_ROOT, bld_dir, fullhdrs)
 
 
+    #Copy makefiles, only supporting one target
     NEW_DR_ROOT = os.path.join(DR_ROOT, "tempsrc")
-    cmd = "cp Makefile " + NEW_DR_ROOT
+    cmd = "cp " + TARGETS[0] + ".mk " + NEW_DR_ROOT
     os.system(cmd)
 
+    #Copy App.c blindly
+    cmd = "cp App.c " + NEW_DR_ROOT
+    os.system(cmd)
+
+    #Copy buildenv.mk blindly
     cmd = "cp buildenv.mk " + DR_ROOT
     os.system(cmd)
