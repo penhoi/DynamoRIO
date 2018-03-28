@@ -1155,7 +1155,7 @@ GLOBAL_LABEL(client_int_syscall:)
  * If we reload ourselves (i#1227) we'll set xdi and xsi to the base and size
  * of the old library that needs to be unmapped.
  */
-        DECLARE_FUNC(_start)
+        DECLARE_EXPORTED_FUNC(_start)
 GLOBAL_LABEL(_start:)
         /* i#1676, i#1708: relocate dynamorio if it is not loaded to preferred address.
          * We call this here to ensure it's safe to access globals once in C code

@@ -44,6 +44,10 @@
 #   HowToBuild.wiki
 ###########################################################################
 
+if (UNIX)
+    set(CMAKE_COPY "/bin/cp")
+endif ()
+
 if ("${CMAKE_GENERATOR}" MATCHES "Visual Studio")
   string(REPLACE "Visual Studio " "" vsgen_ver "${CMAKE_GENERATOR}")
 else ()
@@ -1023,6 +1027,7 @@ if (UNIX)
       set(CMAKE_C_CREATE_SHARED_LIBRARY
         # standard rule
         "<CMAKE_C_COMPILER> <CMAKE_SHARED_LIBRARY_C_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> <CMAKE_SHARED_LIBRARY_CREATE_C_FLAGS> <CMAKE_SHARED_LIBRARY_SONAME_C_FLAG><TARGET_SONAME> -o <TARGET> <OBJECTS> <LINK_LIBRARIES>"
+        "${CMAKE_COPY} <TARGET> <TARGET>.full"
         # now create a .debug copy
         "${CMAKE_OBJCOPY} --only-keep-debug <TARGET> <TARGET>.debug"
         # link original to point at .debug copy
@@ -1054,6 +1059,7 @@ if (UNIX)
         )
       SET(CMAKE_CXX_LINK_EXECUTABLE
         "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> ${exe_link_extra} <OBJECTS>  -o <TARGET> <LINK_LIBRARIES>"
+        "${CMAKE_COPY} <TARGET> <TARGET>.full"
         "${CMAKE_OBJCOPY} --only-keep-debug <TARGET> <TARGET>.debug"
         "${CMAKE_OBJCOPY} --add-gnu-debuglink=<TARGET>.debug <TARGET>"
         "${CMAKE_STRIP} -g ${strip_local} <TARGET>"
