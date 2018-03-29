@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <unistd.h>
+#include <elf.h>
 
 #define _GNU_SOURCE
 #include <dlfcn.h>
@@ -39,11 +40,21 @@ void call_libstart(int argc, char**argv, char** envp, void *libstart)
         *pstack = *t;
     *pstack++ = NULL;
     assert(new_stack[1] == argv[0]);
+
     //copy envp[]
     for (t = envp, n = 0; *t != NULL && n < MAX_ENVP; t++, pstack++)
         *pstack = *t;
     *pstack++ = NULL;
     assert(new_stack[argc+2] == envp[0]);
+
+    //copy auxv[]
+    Elf64_auxv_t *auxv_n = (Elf64_auxv_t*)pstack;
+    Elf64_auxv_t *auxv_o = (Elf64_auxv_t*)(t+1);
+    do {
+        *auxv_n = *auxv_o;
+        auxv_n++;
+        auxv_o++;
+    } while (auxv_o->a_type != AT_NULL);
 
     /*asm volatile ("\n\t"*/
     /*"push %0    \n\t"*/
@@ -56,9 +67,11 @@ void call_libstart(int argc, char**argv, char** envp, void *libstart)
     asm volatile ("\n\t"
             "mov %%rsp, %0   \n\t"
             "mov %1, %%rsp   \n\t"
-            "xor %%rdi,%%rdi  \n\t"
+            /*"xor %%rdi,%%rdi  \n\t"*/
             "jmp *%2   \n\t"
             ::"rm"(oldsp), "rm"(new_stack), "rm"(libstart));
+
+    //fix-me: restore the original stack to exit current process elegently.
 }
 
 
@@ -82,22 +95,22 @@ int main(int argc, char *argv[], char* envp[])
 
 
     /*Get the path of libdynamorio.so*/
-    FILE *f = fopen(szCfg, "r");
-    assert(f != NULL);
+    FILE *fCfg = fopen(szCfg, "r");
+    assert(fCfg != NULL);
 
     char *line = (char*)malloc(PATH_MAX);
     size_t len = PATH_MAX;
     ssize_t read;
     bool bfind = false;
     
-    while((read = getline(&line, &len, f)) != -1) {
+    while((read = getline(&line, &len, fCfg)) != -1) {
         if (read < 20 || strncmp(line, "DYNAMORIO_AUTOINJECT", 20))
             continue;
         line[read-1] = 0;
         bfind = true;
         break;
     }
-    fclose(f);
+    fclose(fCfg);
 
     if (!bfind) {
         free(line);
@@ -123,7 +136,18 @@ int main(int argc, char *argv[], char* envp[])
     }
 
     /*Fixme: The third segment*/
-    mprotect((void*)0x71588000, 0x388000, PROT_READ|PROT_WRITE|PROT_EXEC);
+    /*char szMap[PATH_MAX];*/
+    /*FILE*  fMap;*/
+    /*sprintf(szMap, "/proc/%d/maps", pid);*/
+    
+    /*printf("Test: %s\n", szMap);*/
+    
+    /*fMap = fopen(szMap, "r");*/
+    /*assert(fMap != NULL);*/
+
+    /*fclose(fMap);*/
+
+    /*mprotect((void*)0x71588000, 0x388000, PROT_READ|PROT_WRITE|PROT_EXEC);*/
 
     fp_entry libstart;
     char *pentry = "_start";
