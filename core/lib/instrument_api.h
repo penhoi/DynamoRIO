@@ -1658,6 +1658,7 @@ dr_standalone_init(void);
  * then calls dr_abort()
  */
 #define DR_ASSERT(x) DR_ASSERT_MSG(x, "")
+#define YPHDR_ASSERT(x) DR_ASSERT(x)
 
 /* DR_API EXPORT END */
 

@@ -114,6 +114,8 @@
 # define ASSERT_CURIOSITY_ONCE(x) ASSERT(true)
 #endif /* DEBUG */
 
+#define YPHASSERT(x)    ASSERT(x)
+
 #define ASSERT_NOT_REACHED() ASSERT(false)
 #define ASSERT_BUG_NUM(num, x) ASSERT_MESSAGE(CHKLVL_ASSERTS, "Bug #"#num, x)
 #define ASSERT_NOT_IMPLEMENTED(x) ASSERT_MESSAGE(CHKLVL_ASSERTS, "Not implemented", x)
