@@ -46,6 +46,7 @@
 #include "module_private.h"
 #include <string.h>
 #include <sys/mman.h>
+#include "sgx_vma.h"
 
 #ifndef LINUX
 # error Linux-only
@@ -107,6 +108,49 @@ static char comment_buf_scratch[BUFSIZE];
 static char buf_iter[BUFSIZE];
 static char comment_buf_iter[BUFSIZE];
 
+
+#include "instrument_api.h"
+
+int sgx_procmaps_read_start(void)
+{
+    sgxmm.read = sgxmm.in.next;
+    return !INVALID_FILE;
+}
+
+
+void sgx_procmaps_read_stop(void)
+{   /* empty */
+}
+
+
+int sgx_procmaps_read_next(char *buf, int count)
+{
+    //YPHASSERT(sgxmm.read != NULL);
+
+    if (sgxmm.read == NULL || sgxmm.read == &sgxmm.in)
+        return 0;
+
+#define MAPS_LINE_FORMAT  "%08lx-%08lx %s %08lx %-8d %-8d %8s\n"
+    sgx_vm_area_t *vma;
+    //char *mybuf = sgx_temp_buf;
+    char perm[8] = "---p";
+    vma = list_entry(sgxmm.read, sgx_vm_area_t, ll);
+
+    if (vma->perm & PROT_READ)
+        perm[0] = 'r';
+    if (vma->perm & PROT_WRITE)
+        perm[1] = 'w';
+    if (vma->perm & PROT_EXEC)
+        perm[2] = 'x';
+
+    snprintf(buf, count, MAPS_LINE_FORMAT, vma->vm_start, vma->vm_end, perm, vma->offset, vma->dev, vma->inode, vma->comment);
+    //dr_printf(MAPS_LINE_FORMAT, vma->vm_start, vma->vm_end, perm, vma->offset, vma->dev, vma->inode, vma->comment);
+
+    sgxmm.read = sgxmm.read->next;
+
+    return strlen(buf);
+}
+
 void
 memquery_init(void)
 {
@@ -165,6 +209,7 @@ memquery_iterator_start(memquery_iter_t *iter, app_pc start, bool may_alloc)
              "/proc/%d/maps", get_thread_id());
     mi->maps = os_open(maps_name, OS_OPEN_READ);
     ASSERT(mi->maps != INVALID_FILE);
+    // sgx_procmaps_read_start();
     mi->buf[BUFSIZE-1] = '\0'; /* permanently */
 
     mi->newline = NULL;
@@ -190,6 +235,7 @@ memquery_iterator_stop(memquery_iter_t *iter)
     ASSERT((iter->may_alloc && OWN_MUTEX(&maps_iter_buf_lock)) ||
            (!iter->may_alloc && OWN_MUTEX(&memory_info_buf_lock)));
     os_close(mi->maps);
+    // sgx_procmaps_read_stop();
     if (iter->may_alloc)
         mutex_unlock(&maps_iter_buf_lock);
     else
@@ -209,6 +255,7 @@ memquery_iterator_next(memquery_iter_t *iter)
     if (mi->newline == NULL) {
         mi->bufwant = BUFSIZE-1;
         mi->bufread = os_read(mi->maps, mi->buf, mi->bufwant);
+        // mi->bufread = sgx_procmaps_read_next(mi->buf, mi->bufwant);
         ASSERT(mi->bufread <= mi->bufwant);
         LOG(GLOBAL, LOG_VMAREAS, 6,
             "get_memory_info_from_os: bytes read %d/want %d\n",
@@ -232,6 +279,7 @@ memquery_iterator_next(memquery_iter_t *iter)
             /* FIXME corner case: if len == 0, nothing to move */
             memmove(mi->buf, line, len);
             mi->bufread = os_read(mi->maps, mi->buf+len, mi->bufwant);
+            // mi->bufread = sgx_procmaps_read_next(mi->buf, mi->bufwant);
             ASSERT(mi->bufread <= mi->bufwant);
             if (mi->bufread <= 0)
                 return false;

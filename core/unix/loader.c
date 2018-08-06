@@ -1816,6 +1816,7 @@ privload_early_inject(void **sp, byte *old_libdr_base, size_t old_libdr_size)
         takeover_ptrace((ptrace_stack_args_t *) sp);
     }
 
+    sgx_mm_init((old_libdr_base == NULL)? 1 : 0);
     /* i#1227: if we reloaded ourselves, unload the old libdynamorio */
     if (old_libdr_base != NULL) {
         /* i#2641: we can't blindly unload the whole region as vvar+vdso may be

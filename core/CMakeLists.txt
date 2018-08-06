@@ -278,6 +278,7 @@ endif ()
 if (UNIX)
   set(OSNAME unix)
   set(OS_SRCS
+    unix/sgx_vma.c
     unix/os.c
     unix/signal.c
     unix/module.c
@@ -327,6 +328,7 @@ if (UNIX)
   set(PRELOAD_SRCS
     unix/preload.c
     config.c
+    unix/sgx_vma.c
     unix/os.c
     # i#1334: private string routines for libc independence
     string.c
@@ -335,6 +337,7 @@ if (UNIX)
   set(INJECTOR_SRCS
     unix/injector.c
     config.c    # to read config
+    unix/sgx_vma.c
     unix/os.c  # for file_t interface
     string.c
     io.c

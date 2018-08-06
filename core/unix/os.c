@@ -196,6 +196,8 @@ char **our_environ;
 # include "instrument.h"
 #endif
 
+#include "sgx_vma.h"
+
 /* Cross arch syscall nums for use with struct stat64. */
 #ifdef X64
 # ifdef SYS_stat
@@ -2892,10 +2894,18 @@ osprot_replace_memprot(uint old_osprot, uint memprot)
 }
 
 /* libc independence */
-static inline long
+//static inline long
+long
 mprotect_syscall(byte *p, size_t size, uint prot)
 {
-    return dynamorio_syscall(SYS_mprotect, 3, p, size, prot);
+    long ret;
+
+    p = sgx_mm_itn2ext(p);
+    ret = dynamorio_syscall(SYS_mprotect, 3, p, size, prot);
+    if (ret == 0)
+        sgx_mm_mprotect(p, size, prot);
+
+    return ret;
 }
 
 bool
@@ -2922,25 +2932,42 @@ mmap_syscall_succeeded(byte *retval)
 }
 
 /* N.B.: offs should be in pages for 32-bit Linux */
-static inline byte *
+//static inline byte *
+byte*
 mmap_syscall(byte *addr, size_t len, ulong prot, ulong flags, ulong fd, ulong offs)
 {
+    byte* ret;
+
+    addr = sgx_mm_itn2ext(addr);
 #if defined(MACOS) && !defined(X64)
-    return (byte *)(ptr_int_t)
+    ret = return (byte *)(ptr_int_t)
         dynamorio_syscall(SYS_mmap, 7, addr, len, prot, flags, fd,
-                          /* represent 64-bit arg as 2 32-bit args */
-                          offs, 0);
+                /* represent 64-bit arg as 2 32-bit args */
+                offs, 0);
 #else
-    return (byte *)(ptr_int_t)
+    ret = (byte *)(ptr_int_t)
         dynamorio_syscall(IF_MACOS_ELSE(SYS_mmap, IF_X64_ELSE(SYS_mmap, SYS_mmap2)), 6,
-                          addr, len, prot, flags, fd, offs);
+                addr, len, prot, flags, fd, offs);
 #endif
+    if (ret != (byte*)-1)
+        sgx_mm_mmap(ret, len, prot, flags, fd, offs);
+
+    return ret;
 }
 
-static inline long
+//static inline long
+long
 munmap_syscall(byte *addr, size_t len)
 {
-    return dynamorio_syscall(SYS_munmap, 2, addr, len);
+    long ret;
+
+    addr = sgx_mm_itn2ext(addr);
+    ret = dynamorio_syscall(SYS_munmap, 2, addr, len);
+
+    if (ret == 0)
+        sgx_mm_munmap(addr, len);
+
+    return ret;
 }
 
 #ifndef NOT_DYNAMORIO_CORE_PROPER
@@ -4077,12 +4104,18 @@ int
 open_syscall(const char *file, int flags, int mode)
 {
     ASSERT(file != NULL);
+    int res;
+
 #ifdef SYS_open
-    return dynamorio_syscall(SYSNUM_NO_CANCEL(SYS_open), 3, file, flags, mode);
+    res = dynamorio_syscall(SYSNUM_NO_CANCEL(SYS_open), 3, file, flags, mode);
 #else
-    return dynamorio_syscall(SYSNUM_NO_CANCEL(SYS_openat), 4,
+    res = dynamorio_syscall(SYSNUM_NO_CANCEL(SYS_openat), 4,
                              AT_FDCWD, file, flags, mode);
 #endif
+    if (res != -1)
+        sgx_vma_set_cmt(res, file);
+
+    return res;
 }
 
 int

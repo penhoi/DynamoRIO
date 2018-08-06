@@ -189,7 +189,7 @@ if (WIN32)
 else () #UNIX
   # We need os.c for os_open(), etc. for module_*.c.
   # XXX i#1409: create a nice isolated lib for this.
-  set(dr_frontend_srcs dr_frontend_unix.c ../core/unix/os.c)
+  set(dr_frontend_srcs dr_frontend_unix.c ../core/unix/sgx_vma.c ../core/unix/os.c)
   if (APPLE)
     set(dr_frontend_srcs ${dr_frontend_srcs} ../core/unix/module_macho.c)
   else (APPLE)
