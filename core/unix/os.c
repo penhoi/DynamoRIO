@@ -5113,6 +5113,7 @@ ignorable_system_call_normalized(int num)
 #ifdef MACOS
     case SYS_close_nocancel:
 #endif
+    case SYS_open:  /* hook open procmaps file event */
     case SYS_close:
 #ifdef SYS_dup2
     case SYS_dup2:
@@ -7663,17 +7664,17 @@ pre_system_call(dcontext_t *dcontext)
     /* FIXME i#58: handle i386_{get,set}_ldt and thread_fast_set_cthread_self64 */
 #endif
 
-#ifdef DEBUG
-# ifdef MACOS
-    case SYS_open_nocancel:
-# endif
-# ifdef SYS_open
+// #ifdef DEBUG
+// # ifdef MACOS
+//     case SYS_open_nocancel:
+// # endif
+// # ifdef SYS_open
     case SYS_open: {
         dcontext->sys_param0 = sys_param(dcontext, 0);
         break;
     }
-# endif
-#endif
+// # endif
+// #endif
 
     default: {
 #ifdef LINUX
@@ -8173,11 +8174,11 @@ post_system_call(dcontext_t *dcontext)
     /****************************************************************************/
     /* MEMORY REGIONS */
 
-#ifdef DEBUG
-# ifdef MACOS
-    case SYS_open_nocancel:
-# endif
-# ifdef SYS_open
+// #ifdef DEBUG
+// # ifdef MACOS
+//     case SYS_open_nocancel:
+// # endif
+// # ifdef SYS_open
     case SYS_open: {
         if (success) {
             /* useful for figuring out what module was loaded that then triggers
@@ -8185,11 +8186,14 @@ post_system_call(dcontext_t *dcontext)
              */
             LOG(THREAD, LOG_SYSCALLS, 2, "SYS_open %s => %d\n",
                 dcontext->sys_param0, (int)result);
+
+            //dr_printf("%s: %s => %d\n", __FUNCTION__, (const char*)dcontext->sys_param0, (int)result);
+            sgx_vma_set_cmt(result, (const char*)dcontext->sys_param0);
         }
         break;
     }
-# endif
-#endif
+// # endif
+// #endif
 
 #if defined(LINUX) && !defined(X64) && !defined(ARM)
     case SYS_mmap:
@@ -8234,6 +8238,14 @@ post_system_call(dcontext_t *dcontext)
 #if defined(LINUX) && !defined(X64) && !defined(ARM)
         }
 #endif
+        if (success) {
+          ulong ufd = sys_param(dcontext, 4);
+          ulong offs = sys_param(dcontext, 5);
+          //base = sgx_mm_ext2itn(base);
+          //set_success_return_val(dcontext, (reg_t)base);
+          sgx_mm_mmap(base, size, prot, flags, ufd, offs);
+        }
+
         process_mmap(dcontext, base, size, prot, flags _IF_DEBUG(map_type));
         break;
     }
@@ -8273,6 +8285,9 @@ post_system_call(dcontext_t *dcontext)
                                                                         PAGE_SIZE),
                                                   info.prot,
                                                   info.type, false/*add back*/));
+        }
+        if (success) {
+          sgx_mm_munmap(addr, len);
         }
         break;
     }
@@ -8363,6 +8378,9 @@ post_system_call(dcontext_t *dcontext)
                                                       memprot, -1/*type unchanged*/,
                                                       true/*exists*/));
             }
+        }
+        if (success) {
+          sgx_mm_mprotect(base, size, prot);
         }
         break;
     }

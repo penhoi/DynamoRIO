@@ -122,40 +122,45 @@ byte* sgx_mm_ext2itn(byte* ext_addr)
 #define vvar_size       0x3000
 #define vdso_size       0x2000
 #define dr_data_size    0x46000
-#define heap_size       0x3e000
+#define heap_size       0x3f000
 #define stack_size      0x21000
+#define vsyscall_size   0x1000
 
-#define dr_code_start_s1    (byte*)0x7ffff79cd000
-#define vvar_start          (byte*)0x7ffff7f76000
-#define vdso_start          (byte*)(vvar_start + vvar_size)
-#define dr_data_start_s1    (byte*)(vdso_start + vdso_size)
-#define heap_start          (byte*)(dr_data_start_s1 + dr_data_size)
+#define dr_code_start_s1    (byte*)0x7ffff79cc000
+#define dr_code_end_s1      (byte*)(dr_code_start_s1 + dr_code_size)
+#define vvar_start          (byte*)(dr_code_end_s1 + 0x1fb000)
+#define vvar_end            (byte*)(vvar_start + vvar_size)
+#define vdso_start          (byte*)(vvar_end)
+#define vdso_end            (byte*)(vdso_start + vdso_size)
+#define dr_data_start_s1    (byte*)(vdso_end)
+#define dr_data_end_s1      (byte*)(dr_data_start_s1 + dr_data_size)
+#define heap_start          (byte*)(dr_data_end_s1)
+#define heap_end            (byte*)(heap_start + heap_size)
 #define stack_start         (byte*)0x7ffffffde000
-
-#define dr_code_end_s1  (byte*)(dr_code_start_s1 + dr_code_size)
-#define vvar_end        (byte*)(vvar_start + vvar_size)
-#define vdso_end        (byte*)(vdso_start + vdso_size)
-#define dr_data_end_s1  (byte*)(dr_data_start_s1 + dr_data_size)
-#define heap_end        (byte*)(heap_start + heap_size)
-#define stack_end       (byte*)(stack_start + stack_size)
-
+#define stack_end           (byte*)(stack_start + stack_size)
+#define vsyscall_start      (byte*)0xffffffffff600000
+#define vsyscall_end        (byte*)(vsyscall_start + vsyscall_size)
 
 /* The memroy layout if Dynamorio is reloaed */
 #define dr_hole1_size       0x200000
-#define dr_hole2_size       0x3e000
+#define dr_hole2_size       0x3f000
 #define dr_hole3_size       0x1000
 
 #define dr_code_start_s2    (byte*)0x71000000
-#define dr_hole1_start_s2   (byte*)(dr_code_start_s2 + dr_code_size)
-#define dr_data_start_s2    (byte*)(dr_hole1_start_s2 + dr_hole1_size)
-#define dr_hole2_start_s2   (byte*)(dr_data_start_s2 + dr_data_size)
-#define dr_hole3_start_s2   (byte*)(dr_hole2_start_s2 + dr_hole2_size)
-
 #define dr_code_end_s2      (byte*)(dr_code_start_s2 + dr_code_size)
+#define dr_hole1_start_s2   (byte*)(dr_code_end_s2)
 #define dr_hole1_end_s2     (byte*)(dr_hole1_start_s2 + dr_hole1_size)
+#define dr_data_start_s2    (byte*)(dr_hole1_end_s2)
 #define dr_data_end_s2      (byte*)(dr_data_start_s2 + dr_data_size)
+#define dr_hole2_start_s2   (byte*)(dr_data_end_s2)
 #define dr_hole2_end_s2     (byte*)(dr_hole2_start_s2 + dr_hole2_size)
+#define dr_hole3_start_s2   (byte*)(dr_hole2_end_s2)
 #define dr_hole3_end_s2     (byte*)(dr_hole3_start_s2 + dr_hole3_size)
+
+#define sgx_mm_size         0x4000000
+#define sgx_mm_start        (byte*)0x7fff00000000
+#define sgx_mm_end          (byte*)(sgx_mm_start + sgx_mm_size)
+
 
 #define DR_PATH "/home/yph/project/dynamorio.org/debug/lib64/debug/libdynamorio.so"
 sgx_vm_area_t vma_list_exec[] = {
@@ -165,6 +170,7 @@ sgx_vm_area_t vma_list_exec[] = {
     {dr_data_start_s1, dr_data_end_s1, NULL, PROT_READ|PROT_WRITE, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
     {heap_start, heap_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[heap]"},
     {stack_start, stack_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[stack]"},
+    {vsyscall_start, vsyscall_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[vsyscall]"},
     {(byte*)NULL, (byte*)NULL, NULL, 0, 0, 0, 0, {NULL, NULL}, ""}
 };
 
@@ -175,11 +181,13 @@ sgx_vm_area_t vma_list_reload[] = {
     {dr_hole2_start_s2, dr_hole2_end_s2, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, ""},
     {dr_hole3_start_s2, dr_hole3_end_s2, NULL, PROT_NONE, 0, 0, 0, {NULL, NULL}, ""},
     {dr_code_start_s1, dr_code_end_s1, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, DR_PATH},
+    {sgx_mm_start, sgx_mm_end, NULL, PROT_READ|PROT_WRITE|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[sgxmm]"},
     {vvar_start, vvar_end, NULL, PROT_READ, 0, 0, 0, {NULL, NULL}, "[vvar]"},
     {vdso_start, vdso_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[vdso]"},
     {dr_data_start_s1, dr_data_end_s1, NULL, PROT_READ|PROT_WRITE, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
     {heap_start, heap_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[heap]"},
     {stack_start, stack_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[stack]"},
+    {vsyscall_start, vsyscall_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[vsyscall]"},
     {(byte*)NULL, (byte*)NULL, NULL, 0, 0, 0, 0, {NULL, NULL}, ""}
 };
 
@@ -201,6 +209,7 @@ void sgx_mm_init(int first)
     YPHASSERT(SGX_VMA_MAX_CNT > 2);
     for (idx = 0, vma = sgxmm.slots; idx < SGX_VMA_MAX_CNT; idx++, vma++) {
         ll = &vma->ll;
+        ll->prev = NULL;    /* set prev to NULL if not used */
         if(idx == SGX_VMA_MAX_CNT - 1) {
             ll->next = NULL;
         }
@@ -214,7 +223,6 @@ void sgx_mm_init(int first)
 
     sgxmm.nin = 0;
     sgxmm.nun = SGX_VMA_MAX_CNT;
-    sgxmm.read = NULL;
 
     /* Allocate a big buffer for loading target program into SGX*/
     if (first == true) /* please don't change it */ {
@@ -246,14 +254,16 @@ void sgx_mm_init(int first)
     for (; vma->vm_start != NULL; vma++) {
         add = _sgx_vma_alloc(sgxmm.in.prev, &sgxmm.in);
         _sgx_vma_fill(add, vma->vm_start, vma->vm_end-vma->vm_start, vma->perm, -1, vma->offset);
-        if (vma->comment[0] != '\0'  && vma->comment[0] != '[') {
-            int fd;
+        if (vma->comment[0] != '\0') {
+            if (vma->comment[0] != '[') {
+                int fd;
 
-            fd = dynamorio_syscall(SYS_stat, 2, vma->comment, &s);
-            YPHASSERT(fd == 0);
+                fd = dynamorio_syscall(SYS_stat, 2, vma->comment, &s);
+                YPHASSERT(fd == 0);
 
-            add->dev = s.st_dev;
-            add->inode = s.st_ino;
+                add->dev = s.st_dev;
+                add->inode = s.st_ino;
+            }
             strncpy(add->comment, vma->comment, 80);
         }
     }
@@ -293,6 +303,7 @@ void _sgx_vma_free(sgx_vm_area_t* vma)
     list_t* ll = &vma->ll;
     list_del(ll);
 
+    ll->prev = NULL; /* set prev to NULL if not used */
     ll->next = sgxmm.un;
     sgxmm.un = ll;
     sgxmm.nin --, sgxmm.nun ++;

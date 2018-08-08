@@ -198,7 +198,8 @@ typedef struct _dr_pthread_t {
  * more work.  The comment above should be updated as well, as we do not use
  * the app's libc inside DR.
  */
-# define APP_LIBC_TLS_SIZE 0x400
+//# define APP_LIBC_TLS_SIZE 0x400
+# define APP_LIBC_TLS_SIZE 0x0
 #elif defined(AARCHXX)
 /* FIXME i#1551, i#1569: investigate the difference between ARM and X86 on TLS.
  * On ARM, it seems that TLS variables are not put before the thread pointer
@@ -314,6 +315,8 @@ privload_tls_init(void *app_tp)
     LOG(GLOBAL, LOG_LOADER, 2, "%s: app TLS segment base is "PFX"\n",
         __FUNCTION__, app_tp);
     dr_tp = heap_mmap(client_tls_alloc_size, VMM_SPECIAL_MMAP);
+    YPHASSERT(TLS_PRE_TCB_SIZE == 0);
+    YPHASSERT(APP_LIBC_TLS_SIZE == 0);
     ASSERT(APP_LIBC_TLS_SIZE + TLS_PRE_TCB_SIZE + tcb_size <= client_tls_alloc_size);
 #ifdef AARCHXX
     /* GDB reads some pthread members (e.g., pid, tid), so we must make sure

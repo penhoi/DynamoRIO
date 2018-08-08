@@ -5,7 +5,7 @@
 
 /* Used for managing sgx-mmap-buffers */
 typedef struct _list_t {
-    struct _list_t *prev;
+    struct _list_t *prev;   //* set prev to NULL if not inuse */
     struct _list_t *next;
 }list_t;
 
@@ -66,9 +66,6 @@ typedef struct _sgx_mm_t {
     list_t in;
     list_t *un;
     int nin, nun;
-
-    /* simulate the reading on procmaps file */
-    list_t *read;
 } sgx_mm_t;
 
 
