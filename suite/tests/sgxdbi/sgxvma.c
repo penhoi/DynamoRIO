@@ -10,9 +10,9 @@
 #include <unistd.h>
 
 
-#define SGX_BUFFER_BASE 0x7fff00000000
-#define SGX_BUFFER_SIZE 0x4000000
 #define SGX_VMA_MAX_CNT 180
+#define SGX_VMA_CMT_LEN 80
+
 
 typedef unsigned int uint;
 typedef unsigned char byte;
@@ -22,7 +22,6 @@ typedef struct _list_t {
     struct _list_t *next;
 }list_t;
 
-#define SGX_VMA_CMT_LEN 80
 typedef struct _sgx_vm_area_t {
     byte* vm_start;    /* address of corresponding outside memory region */
     byte* vm_end;      /* address of corresponding outside memory region */
@@ -30,10 +29,12 @@ typedef struct _sgx_vm_area_t {
     uint perm;
     ulong dev;         /*  typedef unsigned long int __dev_t */
     ulong inode;       /*  typedef unsigned long int __ino_t */
+    ulong size;
     size_t offset;
     list_t ll;
     char comment[SGX_VMA_CMT_LEN];
 }sgx_vm_area_t;
+
 
 typedef struct _sgx_mm_t {
     byte* vm_base;
@@ -56,9 +57,9 @@ typedef struct _sgx_mm_t {
 #define LIBDR_SO "/home/yph/project/dynamorio.org/debug/lib64/debug/libdynamorio.so"
 
 typedef void (*init_ft) (int);
-typedef sgx_vm_area_t* (*mmap_ft)(byte* ext_addr, size_t len, ulong prot, ulong flags, ulong fd, ulong offs);
-typedef sgx_vm_area_t* (*munmap_ft)(byte* itn_addr, size_t len);
-typedef sgx_vm_area_t* (*mprotect_ft)(byte* ext_addr, size_t len, uint prot);
+typedef byte* (*mmap_ft)(byte* ext_addr, size_t len, ulong prot, ulong flags, ulong fd, ulong offs);
+typedef void (*munmap_ft)(byte* itn_addr, size_t len);
+typedef int (*mprotect_ft)(byte* ext_addr, size_t len, uint prot);
 typedef int (*start_ft)(void);
 typedef void (*stop_ft)(void);
 typedef int (*next_ft)(char *buf, int count);
@@ -294,7 +295,7 @@ void sgx_mm_test_ls(void)
 {
     printf("%s starting...\n", __FUNCTION__);
 
-    sgx_mm_init(false);
+    sgx_mm_init(-1);
     char *fn;
     int fd;
 
@@ -410,6 +411,103 @@ void sgx_mm_test_ls(void)
 
 }
 
+#define EXT_VMA_REGION  0x71fff0000000
+#define SGX_BUFFER_BASE 0x700000000000
+#define SGX_BUFFER_SIZE 0x000010000000
+void sgx_mm_test_ls_2(void)
+{
+    printf("%s starting...\n", __FUNCTION__);
+
+    sgx_mm_init(false);
+
+    char *fn;
+    int fd;
+    byte* itn_addr;
+    long nTemp;
+
+    //open("/etc/ld.so.cache", O_RDONLY|O_CLOEXEC) = 3
+    fn = "/etc/ld.so.cache";
+    fd = open(fn, O_RDONLY|O_CLOEXEC);
+    if (fd == -1) {
+        printf("Faied to open %s\n", fn);
+        return;
+    }
+    sgx_vma_set_cmt(fd, fn);
+    mmap((byte*)0x7ffff0fdc000, 107738, PROT_READ, MAP_PRIVATE, fd, 0) ;
+    mmap((byte*)0x7ffff0fdb000, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) ;
+    itn_addr = (byte*)sgx_mm_mmap((byte*)0x7ffff0fdc000, 107738, PROT_READ, MAP_PRIVATE, fd, 0) ;
+
+    //Should allocate sgx-mm-buffer successfully
+    nTemp = (0x7ffff0fdc000 & (0x10000000-1)) | SGX_BUFFER_BASE;
+    assert(itn_addr == (byte*)nTemp && *itn_addr == *(byte*)nTemp);
+
+    //Should allocate sgx-mm-buffer successfully
+    itn_addr = sgx_mm_mmap((byte*)0x7ffff0fdb000, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) ;
+    nTemp = (0x7ffff0fdb000 & (0x10000000-1)) | SGX_BUFFER_BASE;
+    assert(itn_addr == (byte*)nTemp);
+    close(fd);
+
+    //0x7ffff7809000     0x7ffff79c9000   0x1c0000        0x0 /lib/x86_64-linux-gnu/libc-2.23.so
+    itn_addr = sgx_mm_mmap((byte*)0x71fff79c9000, 0x1c0000, PROT_READ, MAP_PRIVATE, -1, 0) ;
+    //should be failed
+    assert(itn_addr == (byte*)0x71fff79c9000);
+
+
+    //open("/lib/x86_64-linux-gnu/libselinux.so.1", O_RDONLY|O_CLOEXEC) = 3
+    fn = "/lib/x86_64-linux-gnu/libselinux.so.1";
+    fd = open(fn, O_RDONLY|O_CLOEXEC);
+    if (fd == -1) {
+        printf("Faied to open %s\n", fn);
+        return;
+    }
+    sgx_vma_set_cmt(fd, fn);
+    mmap((byte*)0x7ffff0bb5000, 2234080, PROT_READ|PROT_EXEC, MAP_FIXED|MAP_PRIVATE|MAP_DENYWRITE, fd, 0) ;
+    itn_addr = sgx_mm_mmap((byte*)0x7ffff0bb5000, 2234080, PROT_READ|PROT_EXEC, MAP_FIXED|MAP_PRIVATE|MAP_DENYWRITE, fd, 0) ;
+    //should be success
+    nTemp = (0x7ffff0bb5000 & (0x10000000-1)) | SGX_BUFFER_BASE;
+    assert(itn_addr == (byte*)nTemp && *itn_addr == *(byte*)nTemp);
+
+    mprotect((byte*)0x7ffff0bd4000, 2093056, PROT_NONE) ;
+    sgx_mm_mprotect((byte*)0x7ffff0bd4000, 2093056, PROT_NONE);
+
+
+    mmap((byte*)0x7ffff0dd3000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, fd, 0x1e000) ;
+    mmap((byte*)0x7ffff0dd5000, 5856, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) ;
+
+    sgx_mm_mmap((byte*)0x7ffff0dd3000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_DENYWRITE, fd, 0x1e000) ;
+    sgx_mm_mmap((byte*)0x7ffff0dd5000, 5856, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_FIXED|MAP_ANONYMOUS, -1, 0) ;
+    close(fd);
+
+    mmap((byte*)0x7ffff0fd9000, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) ;
+    mmap((byte*)0x7ffff0fd7000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) ;
+    mprotect((byte*)0x7ffff0bab000, 16384, PROT_READ) ;
+    mprotect((byte*)0x7ffff0371000, 4096, PROT_READ) ;
+    mprotect((byte*)0x7ffff0579000, 4096, PROT_READ) ;
+    mprotect((byte*)0x7ffff07e9000, 4096, PROT_READ) ;
+    mprotect((byte*)0x7ffff0dd3000, 4096, PROT_READ) ;
+    mprotect((byte*)0x61d000, 4096, PROT_READ)     ;
+    mprotect((byte*)0x7ffff0ffc000, 4096, PROT_READ);
+
+    sgx_mm_mmap((byte*)0x7ffff0fd9000, 4096, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) ;
+    sgx_mm_mmap((byte*)0x7ffff0fd7000, 8192, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0) ;
+    sgx_mm_mprotect((byte*)0x7ffff0bab000, 16384, PROT_READ) ;
+    sgx_mm_mprotect((byte*)0x7ffff0371000, 4096, PROT_READ) ;
+    sgx_mm_mprotect((byte*)0x7ffff0579000, 4096, PROT_READ) ;
+    sgx_mm_mprotect((byte*)0x7ffff07e9000, 4096, PROT_READ) ;
+    sgx_mm_mprotect((byte*)0x7ffff0dd3000, 4096, PROT_READ) ;
+    sgx_mm_mprotect((byte*)0x61d000, 4096, PROT_READ)     ;
+    sgx_mm_mprotect((byte*)0x7ffff0ffc000, 4096, PROT_READ);
+
+
+    sgx_procmaps_read_start();
+    while (sgx_procmaps_read_next(buf, BUFFER_LEN) != 0) {
+        printf("%s", buf);
+    }
+
+    sgx_procmaps_read_stop();
+
+    printf("%s end successfully\n", __FUNCTION__);
+}
 
 int main(int argc, char *argv[])
 {
@@ -487,7 +585,8 @@ int main(int argc, char *argv[])
     test_mmap();
     test_mmap2();
 
-    sgx_mm_test_ls();
+    //sgx_mm_test_ls();
+    sgx_mm_test_ls_2();
 
     dlclose(handle);
     exit(EXIT_SUCCESS);

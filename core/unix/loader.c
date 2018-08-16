@@ -1783,6 +1783,7 @@ reload_dynamorio(void **init_sp, app_pc conflict_start, app_pc conflict_end)
  * We assume that _start has already called relocate_dynamorio() for us and
  * that it is now safe to access globals.
  */
+extern int exec_phase;
 void
 privload_early_inject(void **sp, byte *old_libdr_base, size_t old_libdr_size)
 {
@@ -1837,6 +1838,7 @@ privload_early_inject(void **sp, byte *old_libdr_base, size_t old_libdr_size)
             }
             memquery_iterator_stop(&iter);
         }
+        exec_phase = 2;
     }
 
     dynamorio_set_envp(envp);
@@ -1882,6 +1884,7 @@ privload_early_inject(void **sp, byte *old_libdr_base, size_t old_libdr_size)
         ASSERT_NOT_REACHED();
     }
 
+    exec_phase = 3;
     exe_map = elf_loader_map_phdrs(&exe_ld,
                                    /* fixed at preferred address,
                                     * will be overridden if preferred base is 0

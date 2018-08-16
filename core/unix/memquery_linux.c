@@ -135,6 +135,9 @@ int sgx_procmaps_read_start(void)
     sgx_vm_area_t *vma;
     list_t* ll;
     char perm[8];
+    byte* start;
+    byte* end;
+
     char *pbuf;
     char* pcnt;
     size_t nleft;
@@ -144,6 +147,10 @@ int sgx_procmaps_read_start(void)
 
     for (ll = sgxmm.in.next; ll != &sgxmm.in; ll = ll->next) {
         vma = list_entry(ll, sgx_vm_area_t, ll);
+
+        /* Please don't expose the sgx-mm-buffer itself */
+        if (vma->vm_start >= sgx_vm_base && vma->vm_end <= sgx_vm_base + SGX_BUFFER_SIZE)
+            continue;
 
         /* perm to string */
         strncpy(perm, "---p", 8);
@@ -175,8 +182,17 @@ int sgx_procmaps_read_start(void)
         }
 
         pcnt = sgx_procmaps.buf + sgx_procmaps.cnt_len;
-        nwrite = snprintf(pcnt, nleft, MAPS_LINE_FORMAT, vma->vm_start, vma->vm_end, perm, vma->offset, vma->dev, vma->inode, vma->comment);
-        //dr_printf(MAPS_LINE_FORMAT, vma->vm_start, vma->vm_end, perm, vma->offset, vma->dev, vma->inode, vma->comment);
+        start = sgx_mm_ext2itn(vma->vm_start);
+        if (sgx_mm_within(start, vma->vm_end - vma->vm_start)) {
+            YPHASSERT (vma->vm_sgx != NULL);
+            end = start + (vma->vm_end - vma->vm_start);
+        }
+        else {
+            start = vma->vm_start;
+            end = vma->vm_end;
+        }
+        nwrite = snprintf(pcnt, nleft, MAPS_LINE_FORMAT, start, end, perm, vma->offset, vma->dev, vma->inode, vma->comment);
+        // dr_printf(MAPS_LINE_FORMAT, start, end, perm, vma->offset, vma->dev, vma->inode, vma->comment);
 
         sgx_procmaps.cnt_len += nwrite;
     }
@@ -215,6 +231,7 @@ int sgx_procmaps_read_next(char *buf, int count)
     }
     else {
         memcpy(buf, pcnt, ncnt);
+        buf[ncnt] = '\0';
         sgx_procmaps.read_oft = sgx_procmaps.cnt_len;
 
         return ncnt;
@@ -363,7 +380,7 @@ memquery_iterator_next(memquery_iter_t *iter)
 #ifndef USING_SGX_PROCMAPS
             mi->bufread = os_read(mi->maps, mi->buf+len, mi->bufwant);
 #else
-            mi->bufread = sgx_procmaps_read_next(mi->buf, mi->bufwant);
+            mi->bufread = sgx_procmaps_read_next(mi->buf+len, mi->bufwant);
 #endif
             ASSERT(mi->bufread <= mi->bufwant);
             if (mi->bufread <= 0)
@@ -527,3 +544,4 @@ memquery_from_os(const byte *pc, OUT dr_mem_info_t *info, OUT bool *have_type)
     }
     return true;
 }
+

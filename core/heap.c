@@ -786,7 +786,8 @@ vmm_heap_unit_init(vm_heap_t *vmh, size_t size)
                      + get_random_offset(DYNAMO_OPTION(vm_max_offset) /
                                          DYNAMO_OPTION(vmm_block_size)) *
                      DYNAMO_OPTION(vmm_block_size));*/
-        preferred = DYNAMO_OPTION(vm_base);
+        // preferred = DYNAMO_OPTION(vm_base);
+        preferred = 0x80000000;
         preferred = ALIGN_FORWARD(preferred, DYNAMO_OPTION(vmm_block_size));
         /* overflow check: w/ vm_base shouldn't happen so debug-only check */
         ASSERT(!POINTER_OVERFLOW_ON_ADD(preferred, size));

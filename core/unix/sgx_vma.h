@@ -28,8 +28,9 @@ typedef struct _sgx_vm_area_t {
     byte* vm_end;      /* address of corresponding outside memory region */
     byte* vm_sgx;      /* start address of sgx-buffer */
     uint perm;
-    ulong dev;         /*  typedef unsigned long int __dev_t */
-    ulong inode;       /*  typedef unsigned long int __ino_t */
+    ulong dev;         /* typedef unsigned long int __dev_t */
+    ulong inode;       /* typedef unsigned long int __ino_t */
+    ulong size;        /* total size of a mmaped file, in bytes */
     size_t offset;
     list_t ll;
     char comment[SGX_VMA_CMT_LEN];
@@ -51,8 +52,9 @@ typedef enum _vma_overlap_t {
 }vma_overlap_t;
 
 /* simulate the task_struct::mm */
-#define SGX_BUFFER_BASE 0x7fff00000000
-#define SGX_BUFFER_SIZE 0x4000000
+#define EXT_VMA_REGION  0x7ffff0000000
+#define SGX_BUFFER_BASE 0x700000000000
+#define SGX_BUFFER_SIZE 0x000010000000
 #define SGX_VMA_MAX_CNT 180
 
 typedef struct _sgx_mm_t {
@@ -76,14 +78,15 @@ extern sgx_mm_t sgxmm;
 void sgx_mm_buffer_init(void);
 
 /* translate internal addr to external addr */
-byte* sgx_mm_itn2ext(byte* itn_addr);
+bool sgx_mm_within(byte* addr, size_t len);
+byte* sgx_mm_itn2ext(byte* itn_addr);   // start means starting a region
 byte* sgx_mm_ext2itn(byte* ext_addr);
 
 void sgx_vma_set_cmt(ulong fd, const char *fname);
 void sgx_vma_get_cmt(ulong fd, char *buffer);
 
-sgx_vm_area_t* sgx_mm_mmap(byte* ext_addr, size_t len, ulong prot, ulong flags, ulong fd, ulong offs);
-sgx_vm_area_t* sgx_mm_munmap(byte* itn_addr, size_t len);
+byte* sgx_mm_mmap(byte* ext_addr, size_t len, ulong prot, ulong flags, int fd, ulong offs);
+void sgx_mm_munmap(byte* itn_addr, size_t len);
 int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot);
 
 int sgx_procmaps_read_start(void);

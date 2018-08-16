@@ -92,41 +92,18 @@ byte* sgx_vm_base = NULL;
 byte* ext_vm_base = NULL;
 sgx_mm_t sgxmm;
 
-bool sgx_mm_within(byte* addr, size_t len)
-{
-    return (addr > sgx_vm_base && addr+len < sgx_vm_base+SGX_BUFFER_SIZE);
-}
-
-byte* sgx_mm_itn2ext(byte* itn_addr)
-{
-    //YPHASSERT(itn_addr > sgx_vm_base && itn_addr < sgx_vm_base+SGX_BUFFER_SIZE);
-    if (itn_addr > sgx_vm_base && itn_addr < sgx_vm_base+SGX_BUFFER_SIZE)
-        return (itn_addr - sgx_vm_base) + ext_vm_base;
-    else
-        return itn_addr;
-}
-
-byte* sgx_mm_ext2itn(byte* ext_addr)
-{
-    //YPHASSERT(ext_addr > ext_vm_base && ext_addr < ext_vm_base+SGX_BUFFER_SIZE);
-    if (ext_addr > ext_vm_base && ext_addr < ext_vm_base+SGX_BUFFER_SIZE)
-        return (ext_addr - ext_vm_base) + sgx_vm_base;
-    else
-        return ext_addr;
-}
-
 
 
 /* The memroy layout when Dynamorio is executed */
-#define dr_code_size    0x3ae000
+#define dr_code_size    0x3af000
 #define vvar_size       0x3000
 #define vdso_size       0x2000
 #define dr_data_size    0x46000
-#define heap_size       0x3f000
+#define heap_size       0x40000
 #define stack_size      0x21000
 #define vsyscall_size   0x1000
 
-#define dr_code_start_s1    (byte*)0x7ffff79cc000
+#define dr_code_start_s1    (byte*)0x7ffff79ca000
 #define dr_code_end_s1      (byte*)(dr_code_start_s1 + dr_code_size)
 #define vvar_start          (byte*)(dr_code_end_s1 + 0x1fb000)
 #define vvar_end            (byte*)(vvar_start + vvar_size)
@@ -143,7 +120,7 @@ byte* sgx_mm_ext2itn(byte* ext_addr)
 
 /* The memroy layout if Dynamorio is reloaed */
 #define dr_hole1_size       0x200000
-#define dr_hole2_size       0x3f000
+#define dr_hole2_size       0x40000
 #define dr_hole3_size       0x1000
 
 #define dr_code_start_s2    (byte*)0x71000000
@@ -157,39 +134,109 @@ byte* sgx_mm_ext2itn(byte* ext_addr)
 #define dr_hole3_start_s2   (byte*)(dr_hole2_end_s2)
 #define dr_hole3_end_s2     (byte*)(dr_hole3_start_s2 + dr_hole3_size)
 
-#define sgx_mm_size         0x4000000
-#define sgx_mm_start        (byte*)0x7fff00000000
+#define sgx_mm_size         SGX_BUFFER_SIZE
+#define sgx_mm_start        (byte*)SGX_BUFFER_BASE
 #define sgx_mm_end          (byte*)(sgx_mm_start + sgx_mm_size)
 
 
 #define DR_PATH "/home/yph/project/dynamorio.org/debug/lib64/debug/libdynamorio.so"
 sgx_vm_area_t vma_list_exec[] = {
-    {dr_code_start_s1, dr_code_end_s1, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, DR_PATH},
-    {vvar_start, vvar_end, NULL, PROT_READ, 0, 0, 0, {NULL, NULL}, "[vvar]"},
-    {vdso_start, vdso_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[vdso]"},
-    {dr_data_start_s1, dr_data_end_s1, NULL, PROT_READ|PROT_WRITE, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
-    {heap_start, heap_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[heap]"},
-    {stack_start, stack_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[stack]"},
-    {vsyscall_start, vsyscall_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[vsyscall]"},
-    {(byte*)NULL, (byte*)NULL, NULL, 0, 0, 0, 0, {NULL, NULL}, ""}
+    {dr_code_start_s1, dr_code_end_s1, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, DR_PATH},
+    {vvar_start, vvar_end, NULL, PROT_READ, 0, 0, 0, 0, {NULL, NULL}, "[vvar]"},
+    {vdso_start, vdso_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, "[vdso]"},
+    {dr_data_start_s1, dr_data_end_s1, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
+    {heap_start, heap_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, 0, {NULL, NULL}, "[heap]"},
+    {stack_start, stack_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, 0, {NULL, NULL}, "[stack]"},
+    {vsyscall_start, vsyscall_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, "[vsyscall]"},
+    {(byte*)NULL, (byte*)NULL, NULL, 0, 0, 0, 0, 0, {NULL, NULL}, ""}
 };
 
 sgx_vm_area_t vma_list_reload[] = {
-    {dr_code_start_s2, dr_code_end_s2, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, DR_PATH},
-    {dr_hole1_start_s2, dr_hole1_end_s2, NULL, PROT_NONE, 0, 0, 0, {NULL, NULL}, ""},
-    {dr_data_start_s2, dr_data_end_s2, NULL, PROT_READ|PROT_WRITE, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
-    {dr_hole2_start_s2, dr_hole2_end_s2, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, ""},
-    {dr_hole3_start_s2, dr_hole3_end_s2, NULL, PROT_NONE, 0, 0, 0, {NULL, NULL}, ""},
-    {dr_code_start_s1, dr_code_end_s1, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, DR_PATH},
-    {sgx_mm_start, sgx_mm_end, NULL, PROT_READ|PROT_WRITE|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[sgxmm]"},
-    {vvar_start, vvar_end, NULL, PROT_READ, 0, 0, 0, {NULL, NULL}, "[vvar]"},
-    {vdso_start, vdso_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[vdso]"},
-    {dr_data_start_s1, dr_data_end_s1, NULL, PROT_READ|PROT_WRITE, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
-    {heap_start, heap_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[heap]"},
-    {stack_start, stack_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, {NULL, NULL}, "[stack]"},
-    {vsyscall_start, vsyscall_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, {NULL, NULL}, "[vsyscall]"},
-    {(byte*)NULL, (byte*)NULL, NULL, 0, 0, 0, 0, {NULL, NULL}, ""}
+    {dr_code_start_s2, dr_code_end_s2, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, DR_PATH},
+    {dr_hole1_start_s2, dr_hole1_end_s2, NULL, PROT_NONE, 0, 0, 0, 0, {NULL, NULL}, ""},
+    {dr_data_start_s2, dr_data_end_s2, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
+    {dr_hole2_start_s2, dr_hole2_end_s2, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, 0, {NULL, NULL}, ""},
+    {dr_hole3_start_s2, dr_hole3_end_s2, NULL, PROT_NONE, 0, 0, 0, 0, {NULL, NULL}, ""},
+    {sgx_mm_start, sgx_mm_end, NULL, PROT_READ|PROT_WRITE|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, "[sgxmm]"},
+    {dr_code_start_s1, dr_code_end_s1, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, DR_PATH},
+    {vvar_start, vvar_end, NULL, PROT_READ, 0, 0, 0, 0, {NULL, NULL}, "[vvar]"},
+    {vdso_start, vdso_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, "[vdso]"},
+    {dr_data_start_s1, dr_data_end_s1, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, dr_code_size, {NULL, NULL}, DR_PATH},
+    {heap_start, heap_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, 0, {NULL, NULL}, "[heap]"},
+    {stack_start, stack_end, NULL, PROT_READ|PROT_WRITE, 0, 0, 0, 0, {NULL, NULL}, "[stack]"},
+    {vsyscall_start, vsyscall_end, NULL, PROT_READ|PROT_EXEC, 0, 0, 0, 0, {NULL, NULL}, "[vsyscall]"},
+    {(byte*)NULL, (byte*)NULL, NULL, 0, 0, 0, 0, 0, {NULL, NULL}, ""}
 };
+
+// exec_phase = 0 means the whole system is just running;
+// exec_phase = 1 means the layout-phase1 is just loaded
+// exec_phase = 2 means the layout-phase2 is just loaded
+// exec_phase = 3 means the dynamoRIO is just reloaded for running
+int exec_phase = 0;
+
+bool sgx_mm_within(byte* addr, size_t len)
+{
+    YPHASSERT(len > 0);
+
+    byte *itn_upper;
+
+    /* the uppper bound for translating */
+    if (exec_phase == 0)        // not mapped to sgx-mm-buffer at all
+        itn_upper = sgx_vm_base;
+    else if (exec_phase == 1)   // address beyond dr_code is not mapped
+        itn_upper = dr_code_start_s1 - ext_vm_base + sgx_vm_base;
+    else if (exec_phase == 2)   // address beyond vvar is not mapped
+        itn_upper = vvar_start - ext_vm_base + sgx_vm_base;
+    else if (exec_phase == 3)   // all 0xffffxxxxxxx is mapped
+        //itn_upper = sgx_vm_base + SGX_BUFFER_SIZE;
+        itn_upper = vvar_start - ext_vm_base + sgx_vm_base;
+    else
+        YPHASSERT(false);
+
+    // itn_upper = sgx_vm_base;
+    /* return value in terms of execution phase */
+    if (itn_upper > sgx_vm_base + SGX_BUFFER_SIZE)
+        itn_upper = sgx_vm_base + SGX_BUFFER_SIZE;
+
+    return (addr >= sgx_vm_base && addr + len <= itn_upper);
+}
+
+byte* _sgx_mm_itn2ext(byte* itn_addr, bool start_vma)
+{
+    byte *addr = itn_addr;
+
+    start_vma ? (addr++) : (addr--);
+    if (sgx_mm_within(addr, 1))
+        return (itn_addr - sgx_vm_base) + ext_vm_base;
+    else
+        return itn_addr;    // passed in an external address
+}
+
+byte* _sgx_mm_ext2itn(byte* ext_addr, bool start_vma)
+{
+    /* passed in an internal address */
+    if (ext_addr < ext_vm_base || ext_addr > ext_vm_base+SGX_BUFFER_SIZE)
+        return ext_addr;
+
+    byte* itn_addr = (ext_addr - ext_vm_base) + sgx_vm_base;
+    byte* addr = itn_addr;
+
+    start_vma ? (addr ++) : (addr --);
+    if (sgx_mm_within(addr, 1))
+        return itn_addr;
+    else
+        return ext_addr;    // cannot mapped into SGX-mm-buffer
+}
+
+byte* sgx_mm_itn2ext(byte* itn_addr)
+{
+    return _sgx_mm_itn2ext(itn_addr, true);
+}
+
+byte* sgx_mm_ext2itn(byte* ext_addr)
+{
+    return _sgx_mm_ext2itn(ext_addr, true);
+}
 
 
 //forward declaration
@@ -230,25 +277,29 @@ void sgx_mm_init(int first)
                 SGX_BUFFER_BASE,
                 SGX_BUFFER_SIZE,
                 PROT_READ|PROT_WRITE|PROT_EXEC,
-                MAP_PRIVATE|MAP_ANONYMOUS,
+                MAP_FIXED|MAP_PRIVATE|MAP_ANONYMOUS,
                 -1, 0);
         vma = vma_list_exec;
+        exec_phase = 1;
     }
     else {
         sgx_vm_base = (byte*)SGX_BUFFER_BASE;
         vma = vma_list_reload;
+        exec_phase = 1;
     }
 
 
     YPHASSERT(sgx_vm_base == (byte*)SGX_BUFFER_BASE);
     sgxmm.vm_base = sgx_vm_base;
     sgxmm.vm_size = SGX_BUFFER_SIZE;
-    ext_vm_base = (app_pc)0x7ffff0000000;
+    ext_vm_base = (app_pc)EXT_VMA_REGION;
 
 
     /* Our unit test not wants to load vma_list_exec/reload*/
-    if (first == -1)
+    if (first == -1) {
+        exec_phase = 0;
         return;
+    }
 
     struct stat s;
     for (; vma->vm_start != NULL; vma++) {
@@ -263,6 +314,7 @@ void sgx_mm_init(int first)
 
                 add->dev = s.st_dev;
                 add->inode = s.st_ino;
+                add->size = s.st_size;
             }
             strncpy(add->comment, vma->comment, 80);
         }
@@ -276,6 +328,21 @@ sgx_mm_t* sgx_mm_getmm(void)
     return &sgxmm;
 }
 
+/* Allocate a sgx-mm-buffer for mapping external memory region */
+byte* _sgx_mm_buffer_alloc(byte* ext_addr, size_t len)
+{
+    byte* itn_addr;
+
+    itn_addr = sgx_mm_ext2itn(ext_addr);
+    if (!sgx_mm_within(itn_addr, len))
+        itn_addr = NULL;
+
+    return itn_addr;
+}
+
+void _sgx_mm_buffer_free(byte* itn_addr, size_t len)
+{
+}
 
 sgx_vm_area_t* _sgx_vma_alloc(list_t* llp, list_t* lln)
 {
@@ -317,8 +384,7 @@ static void _sgx_vma_fill(sgx_vm_area_t* vma, byte* vm_start, size_t len, ulong 
 
     vma->vm_start = vm_start;
     vma->vm_end = vm_start + len;
-    vma->vm_sgx = sgx_mm_ext2itn(vm_start);
-
+    vma->vm_sgx = NULL;
     vma->offset = offs;
     vma->perm = prot;
 
@@ -329,6 +395,7 @@ static void _sgx_vma_fill(sgx_vm_area_t* vma, byte* vm_start, size_t len, ulong 
     if (fd == -1) {
         vma->dev = 0;
         vma->inode = 0;
+        vma->size = 0;
         *(long*)vma->comment = 0;
     }
     else {
@@ -337,6 +404,7 @@ static void _sgx_vma_fill(sgx_vm_area_t* vma, byte* vm_start, size_t len, ulong 
 
         vma->dev = s.st_dev;
         vma->inode = s.st_ino;
+        vma->size = s.st_size;
         sgx_vma_get_cmt(fd, vma->comment);
     }
 }
@@ -463,6 +531,8 @@ static size_t _sgx_vma_split(vma_overlap_t ot, sgx_vm_area_t** head, sgx_vm_area
             _sgx_vma_deep_copy(add, vma);
             add->vm_end = ref_end;
             vma->vm_start = ref_end;
+            if (vma->vm_sgx != NULL)
+                vma->vm_sgx = sgx_mm_ext2itn(vma->vm_start);
             len = add->vm_end - add->vm_start;
             if (vma->inode != 0)
                 vma->offset += len;
@@ -476,6 +546,8 @@ static size_t _sgx_vma_split(vma_overlap_t ot, sgx_vm_area_t** head, sgx_vm_area
             _sgx_vma_deep_copy(add, vma);
             vma->vm_end = ref_start;
             add->vm_start = ref_start;
+            if (add->vm_sgx != NULL)
+                add->vm_sgx = sgx_mm_ext2itn(add->vm_start);
             len = add->vm_end - add->vm_start;
             if (add->inode != 0)
                 add->offset += len;
@@ -494,6 +566,8 @@ static size_t _sgx_vma_split(vma_overlap_t ot, sgx_vm_area_t** head, sgx_vm_area
                 _sgx_vma_deep_copy(add, vma);
                 add->vm_end = ref_start;
                 vma->vm_start = ref_start;
+                if (vma->vm_sgx != NULL)
+                    vma->vm_sgx = sgx_mm_ext2itn(vma->vm_start);
                 if (vma->inode != 0)
                     vma->offset += add->vm_end - add->vm_start;
 
@@ -506,6 +580,8 @@ static size_t _sgx_vma_split(vma_overlap_t ot, sgx_vm_area_t** head, sgx_vm_area
                 _sgx_vma_deep_copy(add, vma);
                 vma->vm_end = ref_end;
                 add->vm_start = ref_end;
+                if (add->vm_sgx != NULL)
+                    add->vm_sgx = sgx_mm_ext2itn(add->vm_start);
                 if (add->inode != 0)
                     add->offset += vma->vm_end - vma->vm_start;
 
@@ -526,10 +602,9 @@ static size_t _sgx_vma_split(vma_overlap_t ot, sgx_vm_area_t** head, sgx_vm_area
 
 
 /* Allocate a SGX-vma to track the mmap event */
-int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
+/* Currently, we always assign the richest privilege: PROTE_READ|PROTE_WRITE|PROTE_EXEC */
+int _sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
 {
-    // YPHASSERT (!sgx_mm_within(ext_addr, len));
-
     sgx_vm_area_t *vma = NULL;
     sgx_vm_area_t *head = NULL;
     sgx_vm_area_t *tail = NULL;
@@ -539,10 +614,8 @@ int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
     byte *ref_end = ext_addr + len;
     bool ctuw = true;
 
-    len = (len + SGX_PAGE_SIZE - 1) & ~(SGX_PAGE_SIZE - 1);
     YPHASSERT(ll != &sgxmm.in);
-    /* There is a corner case that, by adding a new region, two previous seperated continus regions are now merged into a single one. */
-    /* We don't consider this case for simplicity */
+
     while (ctuw && ll != &sgxmm.in) {
         vma = list_entry(ll, sgx_vm_area_t, ll);
         ot = _sgx_vma_overlap(vma->vm_start, vma->vm_end, ref_start, ref_end);
@@ -565,6 +638,10 @@ int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
                     YPHASSERT(head != NULL);
 
                     head->perm = prot;
+                    if (head->vm_sgx != NULL) {
+                        // call mprotect on sgx-mm-buffer
+                    }
+
                     _sgx_vma_merge(head);
                 }
 
@@ -581,6 +658,9 @@ int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
                     YPHASSERT(tail != NULL);
 
                     tail->perm = prot;
+                    if (head->vm_sgx != NULL) {
+                        // call mprotect on sgx-mm-buffer
+                    }
                     /* please don't call _sgx_vma_merge */;
 
                     ll = tail->ll.next;
@@ -593,6 +673,9 @@ int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
                 }
                 else {
                     vma->perm = prot;
+                    if (vma->vm_sgx != NULL) {
+                        // call mprotect on sgx-mm-buffer
+                    }
                 }
                 len -= vma->vm_end - vma->vm_start;
                 _sgx_vma_merge(vma);
@@ -607,12 +690,13 @@ int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
                 else {
                     len -= _sgx_vma_split(ot, &head, vma, &tail, ref_start, ref_end);
                     vma->perm = prot;
+                    if (vma->vm_sgx != NULL) {
+                        // call mprotect on sgx-mm-buffer
+                    }
                 }
 
                 /* Please don't invoke _sgx_vma_merge */
-                vma->perm = prot;
                 len = 0;
-
                 ctuw = false;
                 break;
 
@@ -631,9 +715,8 @@ int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
 
 
 /* track munmap event */
-sgx_vm_area_t* sgx_mm_munmap(byte* ext_addr, size_t len)
+void _sgx_mm_munmap(byte* ext_addr, size_t len)
 {
-    // YPHASSERT (!sgx_mm_within(ext_addr, len));
     sgx_vm_area_t *vma = NULL;
     sgx_vm_area_t *head = NULL;
     sgx_vm_area_t *tail = NULL;
@@ -644,7 +727,6 @@ sgx_vm_area_t* sgx_mm_munmap(byte* ext_addr, size_t len)
     vma_overlap_t ot;
     bool ctuw = true;
 
-    len = (len + SGX_PAGE_SIZE - 1) & ~(SGX_PAGE_SIZE - 1);
     while (ctuw && ll != &sgxmm.in) {
         vma = list_entry(ll, sgx_vm_area_t, ll);
         ot = _sgx_vma_overlap(vma->vm_start, vma->vm_end, ext_addr, ext_addr + len);
@@ -695,21 +777,18 @@ sgx_vm_area_t* sgx_mm_munmap(byte* ext_addr, size_t len)
                 break;
         } /* end switch */
     }/* end while */
-
-    return NULL;
 }
 
 
-/* track mmap event */
-sgx_vm_area_t* sgx_mm_mmap(byte* ext_addr, size_t len, ulong prot, ulong flags, ulong ufd, ulong offs)
+
+/* Allocating sgx_vm_area_t to track mmap event */
+/* And also allocate sgx-mm-buffer */
+sgx_vm_area_t* _sgx_mm_mmap(byte* ext_addr, size_t len, ulong prot, ulong flags, int fd, ulong offs)
 {
     sgx_vm_area_t* vma = NULL;
-    int fd = (int)ufd;
-
-    len = (len + SGX_PAGE_SIZE - 1) & ~(SGX_PAGE_SIZE - 1);
 
     /* unmap the overllapped area first */
-    sgx_mm_munmap(ext_addr, len);
+    _sgx_mm_munmap(ext_addr, len);
 
     /* find the location to insert vma */
     list_t *ll = sgxmm.in.next;
@@ -722,9 +801,12 @@ sgx_vm_area_t* sgx_mm_mmap(byte* ext_addr, size_t len, ulong prot, ulong flags, 
     }
 
 
-    /* create a new vma*/
+    /* create a new vma */
     vma = _sgx_vma_alloc(ll->prev, ll);
     _sgx_vma_fill(vma, ext_addr, len, prot, fd, offs);
+
+    /* Allocate sgx-mm-buffer if needs */
+    vma->vm_sgx = _sgx_mm_buffer_alloc(ext_addr, len);
 
     /* do merge if needs for anonymous-mappings */
     if (fd == -1)
@@ -732,6 +814,129 @@ sgx_vm_area_t* sgx_mm_mmap(byte* ext_addr, size_t len, ulong prot, ulong flags, 
 
     return vma;
 }
+
+// Allocate a sgx-vma whether the given external memory region can be casted into a sgx-mm-buffer.
+// If yes, allocates a sgx-mm-buffer. Test the vma->vm_sgx field for checking.
+// ext_addr: external address, maybe NULL; should not be internal address
+byte* sgx_mm_mmap(byte* ext_addr, size_t len, ulong prot, ulong flags, int fd, ulong offs)
+{
+    YPHASSERT(!sgx_mm_within(ext_addr, len));
+
+    sgx_vm_area_t* vma = NULL;
+
+    len = (len + SGX_PAGE_SIZE - 1) & ~(SGX_PAGE_SIZE - 1);
+    // Allocate vma for tracking mmap event
+    vma = _sgx_mm_mmap(ext_addr, len, prot, flags, fd, offs);
+    if (vma == NULL) {
+        // munmap_syscall();
+        return ext_addr;
+    }
+
+    /* copy the content from external to internal if needs */
+    if (vma->vm_sgx != NULL) {
+        if (vma->inode != 0) {
+            int ncpy = (vma->size-offs < len) ? ((vma->size-offs + SGX_PAGE_SIZE - 1) & ~(SGX_PAGE_SIZE - 1)) : len;
+            memcpy(vma->vm_sgx, ext_addr, ncpy);
+            memset(vma->vm_sgx + ncpy, 0, len - ncpy);
+        }
+        else {
+            //memset(vma->vm_sgx, 0, len);
+        }
+        // mprotect_syscall()
+        return vma->vm_sgx;
+    }
+    else
+        return ext_addr;
+}
+
+// Free the sgx-vma tracking the given external memory region.
+// Free the sgx-mm-buffer if allocated.
+// ext_addr: external address; should not be internal address
+void sgx_mm_munmap(byte* ext_addr, size_t len)
+{
+    YPHASSERT(!sgx_mm_within(ext_addr, len));
+
+    sgx_vm_area_t *vma = NULL;
+    byte *ref_start = ext_addr;
+
+    list_t *ll = sgxmm.in.next;
+    vma_overlap_t ot;
+    bool ctuw = true;
+
+    len = (len + SGX_PAGE_SIZE - 1) & ~(SGX_PAGE_SIZE - 1);
+
+    /* flush content to external file if needs */
+    while (ctuw && ll != &sgxmm.in) {
+        vma = list_entry(ll, sgx_vm_area_t, ll);
+        ot = _sgx_vma_overlap(vma->vm_start, vma->vm_end, ext_addr, ext_addr + len);
+
+        switch (ot) {
+            case OVERLAP_NONE:
+                if (vma->vm_start < ref_start) {
+                    ll = ll->next;
+                }
+                else {
+                    ctuw = false;
+                }
+
+                break;
+            case OVERLAP_HEAD:
+                if (vma->inode != 0 && vma->vm_sgx != NULL) {
+                    /* flush content to external file */
+                }
+
+                ctuw = false;
+
+                break;
+            case OVERLAP_TAIL:
+                if (vma->inode != 0 && vma->vm_sgx != NULL) {
+                    /* flush content to external file */
+                }
+
+                ll = vma->ll.next;
+
+                break;
+            case OVERLAP_SUP:
+                ll = vma->ll.next;
+
+                if (vma->inode != 0 && vma->vm_sgx != NULL) {
+                    /* flush content to external file */
+                }
+
+                break;
+            case OVERLAP_SUB:
+                if (vma->inode != 0 && vma->vm_sgx != NULL) {
+                    /* flush content to external file */
+                }
+
+                ctuw = false;
+
+                break;
+            default:
+                YPHASSERT(false);
+        } /* end case */
+    } /* end while */
+
+
+    /* free vmas */
+    _sgx_mm_munmap(ext_addr, len);
+
+    /* invoke mprotect() instead of freeing */
+}
+
+// Adjust the sgx-vmas tracking the given external memory region.
+// mprotect the sgx-mm-buffer if allocated.
+// ext_addr: external address; should not be internal address
+int sgx_mm_mprotect(byte* ext_addr, size_t len, uint prot)
+{
+    YPHASSERT(!sgx_mm_within(ext_addr, len));
+
+    len = (len + SGX_PAGE_SIZE - 1) & ~(SGX_PAGE_SIZE - 1);
+    _sgx_mm_mprotect(ext_addr, len, prot);
+
+    return 0;
+}
+
 
 /* allocate vma for the first segment, it's usually .text */
 sgx_vm_area_t* ___sgx_vma_alloc_text(uint npgs)
@@ -924,7 +1129,7 @@ void* __sgx_vma_free(uint first_page, uint npgs)
 }
 
 
-// byte* sgx_mm_mmap(byte *exp_addr, byte *ext_addr, size_t len, ulong prot, ulong flags, ulong fd, ulong offs)
+// byte* _sgx_mm_mmap(byte *exp_addr, byte *ext_addr, size_t len, ulong prot, ulong flags, ulong fd, ulong offs)
 // {
 //     sgx_vm_area_t* vma;
 //     sgx_vma_type t;
@@ -983,7 +1188,7 @@ void* __sgx_vma_free(uint first_page, uint npgs)
 //     return (sgxmm.vm_base + vma->vm_sgx * SGX_PAGE_SIZE);
 // }
 
-// void* sgx_mm_munmap(byte* itn_addr, size_t len)
+// void* _sgx_mm_munmap(byte* itn_addr, size_t len)
 // {
 //     void *ext_addr;
 //     uint pgidx;
@@ -1000,7 +1205,7 @@ void* __sgx_vma_free(uint first_page, uint npgs)
 // }
 
 
-// void sgx_mm_mprotect(byte* start, byte* end)
+// void _sgx_mm_mprotect(byte* start, byte* end)
 // {
 
 // }
