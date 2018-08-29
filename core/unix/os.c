@@ -3337,6 +3337,7 @@ os_heap_commit(void *p, size_t size, uint prot, heap_error_code_t *error_code)
     }
 
     LOG(GLOBAL, LOG_HEAP, 2, "os_heap_commit: %d bytes @ "PFX"\n", size, p);
+    YPHPRINT("os_heap_commit: %d bytes @ "PFX"\n", size, p);
     return true;
 }
 
@@ -8903,6 +8904,7 @@ get_application_base(void)
             DEBUG_DECLARE(int count =)
                 memquery_library_bounds(name, &executable_start, &executable_end,
                                         NULL, 0);
+            YPHPRINT("%s, start->%lx, end->%lx", name, executable_start, executable_end);
             ASSERT(count > 0 && executable_start != NULL);
         }
 #else

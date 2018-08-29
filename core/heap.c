@@ -740,7 +740,7 @@ vmm_heap_unit_init(vm_heap_t *vmh, size_t size)
     /* -heap_in_lower_4GB takes top priority and has already set heap_allowable_region_*.
      * Next comes -vm_base_near_app.
      */
-    if (DYNAMO_OPTION(vm_base_near_app)) {
+    if (false &&DYNAMO_OPTION(vm_base_near_app)) {
         /* Required for STATIC_LIBRARY: must be near app b/c clients are there.
          * Non-static: still a good idea for fewer rip-rel manglings.
          * Asking for app base means we'll prefer before the app, which
@@ -875,6 +875,7 @@ vmm_heap_unit_init(vm_heap_t *vmh, size_t size)
         vmm_dump_map(vmh);
     });
     ASSERT(bitmap_check_consistency(vmh->blocks, vmh->num_blocks, vmh->num_free_blocks));
+    YPHPRINT("base->:%lxsize->%lx", preferred, size);
 }
 
 static
@@ -1280,11 +1281,13 @@ static inline bool
 vmm_heap_commit(vm_addr_t p, size_t size, uint prot, heap_error_code_t *error_code)
 {
     bool res =  os_heap_commit(p, size, prot, error_code);
+    YPHPRINT("%s", res?"success":"failed");
     size_t commit_used, commit_limit;
     ASSERT(!OWN_MUTEX(&reset_pending_lock));
     if ((DYNAMO_OPTION(reset_at_commit_percent_free_limit) != 0 ||
          DYNAMO_OPTION(reset_at_commit_free_limit) != 0) &&
         os_heap_get_commit_limit(&commit_used, &commit_limit)) {
+        YPHPRINT("Do some check?");
         size_t commit_left = commit_limit - commit_used;
         ASSERT(commit_used <= commit_limit);
         /* FIXME - worry about overflow in the multiplies below? With 4kb pages isn't
@@ -1339,7 +1342,7 @@ vmm_heap_commit(vm_addr_t p, size_t size, uint prot, heap_error_code_t *error_co
         DYNAMO_OPTION(oom_timeout) != 0) {
         DEBUG_DECLARE(heap_error_code_t old_error_code = *error_code;)
         ASSERT(old_error_code != HEAP_ERROR_SUCCESS);
-
+        YPHPRINT("res is false");
         /* check whether worth retrying */
         if (!os_heap_systemwide_overcommit(*error_code)) {
             /* FIXME: we should check whether current process is the hog */

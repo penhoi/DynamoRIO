@@ -452,6 +452,7 @@ module_fill_os_data(ELF_PROGRAM_HEADER_TYPE *prog_hdr, /* PT_DYNAMIC entry */
         }
         if (soname_index != -1 && dynstr != NULL) {
             *soname = dynstr + soname_index;
+            YPHPRINT("soname = %s", *soname);
 
             /* sanity check soname location */
             if ((app_pc)*soname < base || (app_pc)*soname > base + sz) {
@@ -1137,6 +1138,10 @@ module_read_os_data(app_pc base, bool dyn_reloc,
             module_fill_os_data(prog_hdr, v_base, v_end,
                                 base, v_end - v_base, false, dyn_reloc, *load_delta,
                                 soname, os_data);
+            if (*soname == NULL)
+                YPHPRINT("Failed get soname");
+            else
+                YPHPRINT("soname = %s", *soname);
             return true;
         }
     }

@@ -249,6 +249,7 @@ os_loader_init_prologue(void)
                           get_shared_lib_name(get_dynamorio_dll_start()),
                           get_dynamorio_library_path());
     ASSERT(mod != NULL);
+    YPHPRINT("name=%s, path=%s", mod->name, mod->path);
     /* If DR was loaded by system ld.so, then .dynamic *was* relocated (i#1589) */
     privload_create_os_privmod_data(mod, !DYNAMO_OPTION(early_inject));
     libdr_opd = (os_privmod_data_t *) mod->os_privmod_data;
@@ -261,6 +262,7 @@ os_loader_init_prologue(void)
             for (i = 0; i <libdr_opd->os_data.num_segments - 1; i++) {
                 size_t sz = libdr_opd->os_data.segments[i+1].start -
                     libdr_opd->os_data.segments[i].end;
+                YPHPRINT("%s after seg %i has gap size=%lx", mod->name, i, sz);
                 if (sz > 0) {
                     dr_mem_info_t info;
                     bool ok = query_memory_ex_from_os(libdr_opd->os_data.segments[i].end,
