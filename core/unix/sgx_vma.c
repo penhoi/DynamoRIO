@@ -88,14 +88,16 @@ void sgx_vma_get_cmt(ulong fd, char *buffer)
 
 
 
-byte* sgx_vm_base = NULL;
-byte* ext_vm_base = NULL;
+byte* sgx_vm_base   = NULL;
+byte* ext_vm_base   = NULL;
+byte* ext_vvar_start    = NULL;
 sgx_mm_t sgxmm;
 
 
 
 /* The memroy layout when Dynamorio is executed */
-#define dr_code_size    0x3af000
+#define dr_code_size    0x3b0000
+#define dr_seggap_s1    0x1fa000
 #define vvar_size       0x3000
 #define vdso_size       0x2000
 #define dr_data_size    0x46000
@@ -105,7 +107,7 @@ sgx_mm_t sgxmm;
 
 #define dr_code_start_s1    (byte*)0x7ffff79ca000
 #define dr_code_end_s1      (byte*)(dr_code_start_s1 + dr_code_size)
-#define vvar_start          (byte*)(dr_code_end_s1 + 0x1fb000)
+#define vvar_start          (byte*)(dr_code_end_s1 + dr_seggap_s1)
 #define vvar_end            (byte*)(vvar_start + vvar_size)
 #define vdso_start          (byte*)(vvar_end)
 #define vdso_end            (byte*)(vdso_start + vdso_size)
@@ -119,7 +121,7 @@ sgx_mm_t sgxmm;
 #define vsyscall_end        (byte*)(vsyscall_start + vsyscall_size)
 
 /* The memroy layout if Dynamorio is reloaed */
-#define dr_hole1_size       0x200000
+#define dr_hole1_size       0x1ff000
 #define dr_hole2_size       0x40000
 #define dr_hole3_size       0x1000
 
@@ -186,10 +188,10 @@ bool sgx_mm_within(byte* addr, size_t len)
     else if (exec_phase == 1)   // address beyond dr_code is not mapped
         itn_upper = dr_code_start_s1 - ext_vm_base + sgx_vm_base;
     else if (exec_phase == 2)   // address beyond vvar is not mapped
-        itn_upper = vvar_start - ext_vm_base + sgx_vm_base;
-    else if (exec_phase == 3)   // all 0xffffxxxxxxx is mapped
+        itn_upper = ext_vvar_start - ext_vm_base + sgx_vm_base;
+    else if (exec_phase == 3)   // all 0xffffxxxxxxx is mappedph
         //itn_upper = sgx_vm_base + SGX_BUFFER_SIZE;
-        itn_upper = vvar_start - ext_vm_base + sgx_vm_base;
+        itn_upper = ext_vvar_start - ext_vm_base + sgx_vm_base;
     else
         YPHASSERT(false);
 
@@ -246,7 +248,7 @@ void _sgx_vma_free(sgx_vm_area_t* vma);
 static void _sgx_vma_fill(sgx_vm_area_t* vma, byte* ext_addr, size_t len, ulong prot, int fd, ulong offs);
 
 /* init sgx_mm: first should be 1 for true, 0 for reload and -1 for unit debugging */
-void sgx_mm_init(int first)
+void sgx_mm_init_static(int first)
 {
     sgx_vm_area_t *vma = NULL;
     sgx_vm_area_t *add = NULL;
@@ -319,6 +321,125 @@ void sgx_mm_init(int first)
             strncpy(add->comment, vma->comment, 80);
         }
     }
+}
+
+
+int _sgx_mm_init_byreffing_procmaps(void)
+{
+    const char *fn = "/proc/self/maps";
+    int fd = dynamorio_syscall(SYS_open, 2, fn, O_RDONLY);
+    if (fd == -1)
+        return -1;
+
+#define BUF_SZ 4096*2
+#define HEPA_SZ 0x3ffff000
+#define MAPS_LINE_FORMAT4 "%08x-%08x %s %08x %*s %llu %4096s"
+#define MAPS_LINE_FORMAT8 "%016llx-%016llx %s %016llx %*s %llu %4096s"
+    char buf[BUF_SZ];
+    ssize_t nread;
+    nread = dynamorio_syscall(SYS_read, 3, fd, buf, BUF_SZ);
+    if (nread == -1)
+        return -1;
+
+    char *line = buf;
+    char *r;
+
+    buf[BUF_SZ-1] = '\0';
+    do {
+        unsigned long nStart, nEnd, nProt, nOfft, nNode;
+        char szProt[8];
+        char szCmt[80];
+        byte* vm_start;
+        sgx_vm_area_t *add;
+
+        r = strchr(line, '\n');
+        if (r == NULL)
+            break;
+
+        *r = '\0';
+        szCmt[0] = '\0';
+        sscanf(line,
+                sizeof(void*) == 4 ? MAPS_LINE_FORMAT4 : MAPS_LINE_FORMAT8,
+                (unsigned long*)&nStart, (unsigned long*)&nEnd,
+                szProt, (unsigned long*)&nOfft, &nNode, szCmt);
+        line = r+1;
+
+        nProt = 0;
+        if (szProt[0] == 'r') nProt += 1;
+        if (szProt[1] == 'w') nProt += 2;
+        if (szProt[2] == 'x') nProt += 4;
+
+        vm_start = (byte*)nStart;
+
+        // YPHPRINT("%lx-%lx %x %lx %d %d %s\n", nStart, nEnd, nProt, nOfft, nDev, nNode, szCmt);
+        add = _sgx_vma_alloc(sgxmm.in.prev, &sgxmm.in);
+        _sgx_vma_fill(add, vm_start, nEnd - nStart, nProt, -1, nOfft);
+        add->vm_sgx = NULL;
+        add->dev = 8;
+        add->inode = nNode;
+        add->size = nEnd - nStart;
+
+        if (strncmp(szCmt, "[vvar]", 80) == 0)
+            ext_vvar_start = vm_start;
+        if (vm_start == sgx_vm_base)
+            strncpy(add->comment, "[sgxmm]", 80);
+        else
+            strncpy(add->comment, szCmt, 80);
+    }while(r != NULL);
+
+    dynamorio_syscall(SYS_close, 1, fd);
+
+    return 0;
+}
+
+
+void sgx_mm_init(int first)
+{
+    sgx_vm_area_t *vma = NULL;
+    list_t *ll = NULL;
+    int idx;
+
+    YPHASSERT(SGX_VMA_MAX_CNT > 2);
+    /* Initialize sgxmm */
+    for (idx = 0, vma = sgxmm.slots; idx < SGX_VMA_MAX_CNT; idx++, vma++) {
+        ll = &vma->ll;
+        ll->prev = NULL;    /* set prev to NULL if not used */
+        if(idx == SGX_VMA_MAX_CNT - 1) {
+            ll->next = NULL;
+        }
+        else {
+            ll->next = &(sgxmm.slots[idx+1].ll);
+        }
+    }
+    sgxmm.un = &(sgxmm.slots[0].ll);
+    sgxmm.in.prev = &sgxmm.in;
+    sgxmm.in.next = &sgxmm.in;
+
+    sgxmm.nin = 0;
+    sgxmm.nun = SGX_VMA_MAX_CNT;
+
+    /* Allocate a big buffer for loading target program into SGX*/
+    if (first == true) /* please don't change it */ {
+        sgx_vm_base = (byte*)dynamorio_syscall(IF_MACOS_ELSE(SYS_mmap, IF_X64_ELSE(SYS_mmap, SYS_mmap2)), 6,
+                SGX_BUFFER_BASE,
+                SGX_BUFFER_SIZE,
+                PROT_READ|PROT_WRITE|PROT_EXEC,
+                MAP_FIXED|MAP_PRIVATE|MAP_ANONYMOUS,
+                -1, 0);
+        exec_phase = 1;
+    }
+    else {
+        sgx_vm_base = (byte*)SGX_BUFFER_BASE;
+        exec_phase = 1;
+    }
+
+
+    YPHASSERT(sgx_vm_base == (byte*)SGX_BUFFER_BASE);
+    sgxmm.vm_base = sgx_vm_base;
+    sgxmm.vm_size = SGX_BUFFER_SIZE;
+    ext_vm_base = (app_pc)EXT_VMA_REGION;
+
+    _sgx_mm_init_byreffing_procmaps();
 }
 
 
