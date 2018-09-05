@@ -161,6 +161,7 @@ dispatch(dcontext_t *dcontext)
 # endif
 #endif
 
+    YPHPRINT("dispatch: target = 0x%lx", dcontext->next_tag);
     dispatch_enter_dynamorio(dcontext);
     LOG(THREAD, LOG_INTERP, 2, "\ndispatch: target = "PFX"\n", dcontext->next_tag);
 

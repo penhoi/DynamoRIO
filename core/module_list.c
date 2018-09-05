@@ -267,6 +267,10 @@ module_list_add(app_pc base, size_t view_size, bool at_map, const char *filepath
             ma->names.file_name == NULL ? "<no file>" : ma->names.file_name,
             base, base+view_size);
 
+        const char *fn = ma->names.file_name == NULL ? "<no file>" : ma->names.file_name;
+        const char *mn = (GET_MODULE_NAME(&ma->names) == NULL) ? "<no name>" : GET_MODULE_NAME(&ma->names);
+        YPHPRINT("Add module %s:%s @0x%lx-0x%lx", fn, mn, base, base+view_size);
+
         /* note that while it would be natural to invoke the client module
          * load event since we have the data for it right here, the
          * module has not been processed for executable areas yet by DR,

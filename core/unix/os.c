@@ -5032,6 +5032,9 @@ os_normalized_sysnum(int num_raw, instr_t *gateway, dcontext_t *dcontext)
 static bool
 ignorable_system_call_normalized(int num)
 {
+    bool ret;
+
+    YPHPRINT("Begin: This is a big switch-case");
     switch (num) {
 #if defined(SYS_exit_group)
     case SYS_exit_group:
@@ -5158,26 +5161,34 @@ ignorable_system_call_normalized(int num)
     case SYS_set_tls:
     case SYS_cacheflush:
 #endif
-        return false;
+        ret = false;
+        break;
 #ifdef LINUX
 # ifdef SYS_readlink
     case SYS_readlink:
 # endif
     case SYS_readlinkat:
-        return !DYNAMO_OPTION(early_inject);
+        ret = !DYNAMO_OPTION(early_inject);
+        break;
 #endif
     default:
 #ifdef VMX86_SERVER
         if (is_vmkuw_sysnum(num))
-            return vmkuw_ignorable_system_call(num);
+            ret = vmkuw_ignorable_system_call(num);
+        else
 #endif
-        return true;
+        ret = true;
     }
+
+    YPHPRINT("End: syscall=%d is %s", num, ret? "non-ignored" : "ignored");
+
+    return ret;
 }
 
 bool
 ignorable_system_call(int num_raw, instr_t *gateway, dcontext_t *dcontext_live)
 {
+    YPHPRINT("Test if syscall %d is ignorable by ->ignorable_system_call_normalized", num_raw);
     return ignorable_system_call_normalized
         (os_normalized_sysnum(num_raw, gateway, dcontext_live));
 }
@@ -9042,6 +9053,7 @@ found_vsyscall_page(memquery_iter_t *iter _IF_DEBUG(OUT const char **map_type))
 int
 os_walk_address_space(memquery_iter_t *iter, bool add_modules)
 {
+    YPHPRINT("Begin");
     int count = 0;
 #ifdef MACOS
     app_pc shared_start, shared_end;
@@ -9092,6 +9104,7 @@ os_walk_address_space(memquery_iter_t *iter, bool add_modules)
         LOG(GLOBAL, LOG_VMAREAS, 2,
             "start="PFX" end="PFX" prot=%x comment=%s\n",
             iter->vm_start, iter->vm_end, iter->prot, iter->comment);
+        YPHPRINT("start=0x%lx end=0x%lx prot=%x comment=%s", iter->vm_start, iter->vm_end, iter->prot, iter->comment);
         /* Issue 89: the vdso might be loaded inside ld.so as below,
          * which causes ASSERT_CURIOSITY in mmap_check_for_module_overlap fail.
          * b7fa3000-b7fbd000 r-xp 00000000 08:01 108679     /lib/ld-2.8.90.so
@@ -9272,6 +9285,7 @@ os_walk_address_space(memquery_iter_t *iter, bool add_modules)
     LOG(GLOBAL, LOG_VMAREAS, 2, "Module list after memory walk\n");
     DOLOG(1, LOG_VMAREAS, { print_modules(GLOBAL, DUMP_NOT_XML); });
 
+    YPHPRINT("End");
     return count;
 }
 

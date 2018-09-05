@@ -1577,6 +1577,7 @@ dynamo_vm_areas_init()
 int
 vm_areas_init()
 {
+    YPHPRINT("Begin");
     int areas;
 
     /* Case 7957: we allocate all vm vectors on the heap for self-prot reasons.
@@ -1648,6 +1649,7 @@ vm_areas_init()
             "------------------------------------------------------------------------\n");
     });
 
+    YPHPRINT("End");
     return areas;
 }
 
@@ -6080,6 +6082,7 @@ app_memory_allocation(dcontext_t *dcontext, app_pc base, size_t size, uint prot,
         }
     });
 #endif
+    YPHPRINT("%s", TEST(MEMPROT_EXEC, prot) ? "EXEC" : "Non-exec");
 
     /* no current policies allow non-x code at allocation time onto exec list */
     if (!TEST(MEMPROT_EXEC, prot))
@@ -6101,6 +6104,7 @@ app_memory_allocation(dcontext_t *dcontext, app_pc base, size_t size, uint prot,
     LOG(GLOBAL, LOG_VMAREAS, 1, "New +x app memory region: "PFX"-"PFX" %s\n",
         base, base+size, memprot_string(prot));
 
+    YPHPRINT("%s", TEST(MEMPROT_WRITE, prot) ? "WRITE" : "Non-WRITE");
     if (!TEST(MEMPROT_WRITE, prot)) {
         uint frag_flags = 0;
         if (DYNAMO_OPTION(coarse_units) && image && !RUNNING_WITHOUT_CODE_CACHE()) {
@@ -6171,6 +6175,8 @@ app_memory_allocation(dcontext_t *dcontext, app_pc base, size_t size, uint prot,
         }
 #endif /* PROGRAM_SHEPHERDING */
     }
+
+    YPHPRINT("return false");
     return false;
 }
 

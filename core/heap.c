@@ -1466,7 +1466,7 @@ vmm_heap_exit()
         /* FIXME: we have three regions that are not explicitly
          * deallocated current stack, init stack, global_do_syscall
          */
-        DOCHECK(1, {
+        // DOCHECK(1, {
             uint perstack =
                 ALIGN_FORWARD_UINT(DYNAMO_OPTION(stack_size) +
                                    (DYNAMO_OPTION(guard_pages) ? (2*PAGE_SIZE) :
@@ -1491,7 +1491,7 @@ vmm_heap_exit()
                      IF_WINDOWS(|| get_os_version() >= WINDOWS_VERSION_8_1)) &&
                     heapmgt->vmheap.num_free_blocks >=
                     heapmgt->vmheap.num_blocks - unfreed_blocks));
-        });
+        // });
         /* FIXME: On process exit we are currently executing off a
          *  stack in this region so we cannot free the whole allocation.
 

@@ -2130,6 +2130,9 @@ instr_is_floating(instr_t *instr);
 bool
 instr_saves_float_pc(instr_t *instr);
 
+bool
+instr_is_rdtsc(instr_t *instr);
+
 #ifdef AARCH64
 bool
 instr_is_icache_op(instr_t *instr);

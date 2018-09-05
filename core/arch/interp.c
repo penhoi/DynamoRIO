@@ -959,6 +959,7 @@ bb_process_ubr(dcontext_t *dcontext, build_bb_t *bb)
 {
     app_pc tgt = (byte *) opnd_get_pc(instr_get_target(bb->instr));
     BBPRINT(bb, 4, "interp: direct jump at "PFX"\n", bb->instr_start);
+    YPHPRINT("Unconditional branch from 0x%lx to 0x%lx", bb->instr_start, tgt);
     if (must_not_be_elided(tgt)) {
 #ifdef WINDOWS
         byte *wrapper_start;
@@ -1701,6 +1702,7 @@ static bool
 bb_process_ignorable_syscall(dcontext_t *dcontext, build_bb_t *bb,
                              int sysnum, bool *continue_bb)
 {
+    YPHPRINT("found ignorable system call %d", sysnum);
     STATS_INC(ignorable_syscalls);
     BBPRINT(bb, 3, "found ignorable system call 0x%04x\n", sysnum);
 #ifdef WINDOWS
@@ -2023,6 +2025,7 @@ bb_process_syscall(dcontext_t *dcontext, build_bb_t *bb)
 
         bool continue_bb;
 
+        YPHPRINT("->bb_process_ignorable_syscall");
         if (bb_process_ignorable_syscall(dcontext, bb, sysnum, &continue_bb)) {
             if (!DYNAMO_OPTION(inline_ignored_syscalls))
                 continue_bb = false;
@@ -2038,6 +2041,7 @@ bb_process_syscall(dcontext_t *dcontext, build_bb_t *bb)
 #endif
 
     /* Fall thru and handle as a non-ignorable syscall. */
+    YPHPRINT("->bb_process_non_ignorable_syscall");
     return bb_process_non_ignorable_syscall(dcontext, bb, sysnum);
 }
 
@@ -3398,6 +3402,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
         cur_max_bb_instrs = 1;
     }
 
+    YPHPRINT("Begin: bb_decoding %s @%lx", bb->full_decode ? "fullmode":"Non fullmode",  bb->instr_start);
     KSTART(bb_decoding);
     while (true) {
         if (check_for_stopping_point(dcontext, bb)) {
@@ -3780,7 +3785,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             }
         }
 #endif
-
+        YPHPRINT("Begin: test the type of the ending instruction");
         if (instr_is_near_call_direct(bb->instr)) {
            if (!bb_process_call_direct(dcontext, bb)) {
                 if (bb->instr != NULL)
@@ -3957,7 +3962,11 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             bb_process_float_pc(dcontext, bb);
             break;
         }
+        else if (instr_is_rdtsc(bb->instr)) {
 
+        }
+
+        YPHPRINT("End: test the type of the ending instruction");
         if (bb->cur_pc == bb->stop_pc) {
             /* We only check stop_pc for full_decode, so not in inner loop. */
             BBPRINT(bb, 3, "reached end pc "PFX", stopping\n", bb->stop_pc);
@@ -3989,6 +3998,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
         }
 
     } /* end of while (true) */
+
     KSTOP(bb_decoding);
 
 #ifdef DEBUG_MEMORY
@@ -4004,6 +4014,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
     }
     bb->end_pc = bb->cur_pc;
     BBPRINT(bb, 3, "end_pc = "PFX"\n\n", bb->end_pc);
+    YPHPRINT("End: bb_decoding @%lx", bb->end_pc);
 
     /* We could put this in check_new_page_jmp where it already checks
      * for native_exec overlap, but selfmod ubrs don't even call that routine

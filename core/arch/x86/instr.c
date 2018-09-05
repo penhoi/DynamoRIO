@@ -1002,6 +1002,13 @@ instr_saves_float_pc(instr_t *instr)
             op == OP_fxsave64 || op == OP_xsave64 || op == OP_xsaveopt64);
 }
 
+bool
+instr_is_rdtsc(instr_t *instr)
+{
+    int op = instr_get_opcode(instr);
+    return (op == OP_rdtsc);
+}
+
 static bool
 opcode_is_mmx(int op)
 {

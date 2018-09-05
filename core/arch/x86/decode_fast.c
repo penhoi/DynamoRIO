@@ -1009,6 +1009,7 @@ intercept_fip_save(byte *pc, byte byte0, byte byte1)
 byte *
 decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
 {
+    YPHPRINT("Begin: decoding until has a CtI");
     byte byte0, byte1;
     byte *start_pc = pc;
 
@@ -1059,6 +1060,9 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
 
     byte0 = *pc;
     byte1 = *(pc + 1);
+
+    if (byte0 == 0x0f && byte1 == 0x31)
+        YPHPRINT("rdtsc");
 
     /* eflags analysis
      * we do this even if -unsafe_ignore_eflags b/c it doesn't cost that
@@ -1158,6 +1162,13 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         return (start_pc + sz);
     }
 #endif
+    /* rdtsc */
+    // if (byte0==0x0f && byte1==0x31) {
+    //     instr_set_opcode(instr, OP_rdtsc);
+    //      don't bother to set dsts/srcs
+    //     instr_set_raw_bits(instr, start_pc, sz);
+    //     return (start_pc + sz);
+    // }
 
     /* prefixes won't make a difference for 8-bit-offset jumps */
 
