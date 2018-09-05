@@ -1980,7 +1980,6 @@ check_is_variable_size(opnd_t op)
 static byte *
 decode_common(dcontext_t *dcontext, byte *pc, byte *orig_pc, instr_t *instr)
 {
-    YPHPRINT("Decode one instruction");
     const instr_info_t *info;
     decode_info_t di;
     byte *next_pc;

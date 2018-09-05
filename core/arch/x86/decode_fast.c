@@ -1009,9 +1009,10 @@ intercept_fip_save(byte *pc, byte byte0, byte byte1)
 byte *
 decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
 {
-    YPHPRINT("Begin: decoding until has a CtI");
+    YPHPRINT("Begin: decoding until has a CTI");
     byte byte0, byte1;
     byte *start_pc = pc;
+    byte *ret = NULL;
 
     /* find and remember the instruction and its size */
     int prefixes;
@@ -1029,7 +1030,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
     if (sz == 0) {
         /* invalid instruction! */
         instr_set_opcode(instr, OP_INVALID);
-        return NULL;
+        ret = NULL;
+        goto loc_ret;
     }
     instr_set_opcode(instr, OP_UNDECODED);
     IF_X64(instr_set_x86_mode(instr, get_x86_mode(dcontext)));
@@ -1060,9 +1062,6 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
 
     byte0 = *pc;
     byte1 = *(pc + 1);
-
-    if (byte0 == 0x0f && byte1 == 0x31)
-        YPHPRINT("rdtsc");
 
     /* eflags analysis
      * we do this even if -unsafe_ignore_eflags b/c it doesn't cost that
@@ -1131,7 +1130,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         /* assumption: operands are already marked invalid (instr was reset) */
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (start_pc + sz);
+        ret = (start_pc + sz);
+        goto loc_ret;
     }
 
 
@@ -1146,12 +1146,14 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
          * may change our minds here!  This is case 211206/6749.
          */
         if (decode(dcontext, start_pc, instr) == NULL)
-            return NULL;
+            ret = NULL;
         else
-            return (start_pc + sz);
+            ret = (start_pc + sz);
+
+        goto loc_ret;
     }
 
-#ifdef FOOL_CPUID
+// #ifdef FOOL_CPUID
     /* for fooling program into thinking hardware is different than it is */
     if (byte0==0x0f && byte1==0xa2) { /* cpuid */
         instr_set_opcode(instr, OP_cpuid);
@@ -1159,16 +1161,18 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         instr_set_operands_valid(instr, false);
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (start_pc + sz);
+        ret = (start_pc + sz);
+        goto loc_ret;
     }
-#endif
-    /* rdtsc */
-    // if (byte0==0x0f && byte1==0x31) {
-    //     instr_set_opcode(instr, OP_rdtsc);
-    //      don't bother to set dsts/srcs
-    //     instr_set_raw_bits(instr, start_pc, sz);
-    //     return (start_pc + sz);
-    // }
+// #endif
+    if (byte0==0x0f && byte1==0x31) {   // rdtsc
+        instr_set_opcode(instr, OP_rdtsc);
+        // don't bother to set dsts/srcs
+        instr_set_operands_valid(instr, false);
+        instr_set_raw_bits(instr, start_pc, sz);
+        ret = (start_pc + sz);
+        goto loc_ret;
+    }
 
     /* prefixes won't make a difference for 8-bit-offset jumps */
 
@@ -1179,7 +1183,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         instr_set_target(instr, opnd_create_pc(tgt));
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 2);
+        ret = (pc + 2);
+        goto loc_ret;
     }
 
     if ((byte0 & 0xf0) == 0x70) {       /* jcc_short */
@@ -1195,10 +1200,12 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
 
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 2);
+        ret = (pc + 2);
+        goto loc_ret;
     }
 
     if (byte0 == 0xe8) {                /* call */
+        YPHPRINT("Find a call instruction");
         int offset = *((int *)(pc + 1));
         app_pc tgt = pc + offset + 5;
         instr_set_opcode(instr, OP_call);
@@ -1211,7 +1218,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
                        resolve_variable_size_dc(dcontext, 0, OPSZ_call, false)));
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 5);
+        ret = (pc + 5);
+        goto loc_ret;
     }
 
     if (byte0 == 0xe9) {                /* jmp */
@@ -1222,7 +1230,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         instr_set_target(instr, opnd_create_pc(tgt));
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 5);
+        ret = (pc + 5);
+        goto loc_ret;
     }
 
     if ((byte0 == 0x0f) && ((byte1 & 0xf0) == 0x80)) { /* jcc */
@@ -1239,7 +1248,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
 
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 6);
+        ret = (pc + 6);
+        goto loc_ret;
     }
 
     if (byte0 == 0xff) {                /* check for indirect calls/branches */
@@ -1251,9 +1261,11 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
             /* we care about the operands and prefixes, so just do the full decode
              */
             if (decode(dcontext, start_pc, instr) == NULL)
-                return NULL;
+                ret = NULL;
             else
-                return (start_pc + sz);
+                ret = (start_pc + sz);
+
+            goto loc_ret;
         }
         /* otherwise it wasn't an indirect branch so continue */
     }
@@ -1278,19 +1290,28 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
                                                     OPSZ_REXVARSTACK, false)));
             instr_set_raw_bits(instr, start_pc, sz);
             IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-            return (pc + 3);
+            ret = (pc + 3);
+            goto loc_ret;
+
+            break;
         case 3:         /* ret w/ no immed */
             instr_set_opcode(instr, OP_ret);
             instr_set_raw_bits(instr, start_pc, sz);
             IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
             /* we don't set any operands and leave to an up-decode for that */
-            return (pc + 1);
+            ret = (pc + 1);
+            goto loc_ret;
+
+            break;
         case 0xb: /* far ret w/ no immed */
             instr_set_opcode(instr, OP_ret_far);
             instr_set_raw_bits(instr, start_pc, sz);
             IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
             /* we don't set any operands and leave to an up-decode for that */
-            return (pc + 1);
+            ret = (pc + 1);
+            goto loc_ret;
+
+            break;
         }
         /* otherwise it wasn't a return so continue */
     }
@@ -1312,9 +1333,11 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
              * this is rare so go ahead and do full decode
              */
             if (decode(dcontext, start_pc, instr) == NULL)
-                return NULL;
+                ret = NULL;
             else
-                return (start_pc + sz);
+                ret = (start_pc + sz);
+
+            goto loc_ret;
         }
         if (instr_opcode_valid(instr)) {
             /* calculate the branch's target address */
@@ -1327,7 +1350,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
             instr_set_target(instr, opnd_create_pc(tgt));
             instr_set_raw_bits(instr, start_pc, sz);
             IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-            return (pc + 2);
+            ret = (pc + 2);
+            goto loc_ret;
         }
         /* otherwise it wasn't a funny 8-bit cbr so continue */
     }
@@ -1336,9 +1360,11 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         /* we need prefix info, this is rare so we do a full decode
          */
         if (decode(dcontext, start_pc, instr) == NULL)
-            return NULL;
+            ret = NULL;
         else
-            return (start_pc + sz);
+            ret = (start_pc + sz);
+
+        goto loc_ret;
     }
 
     /* both win32 and linux want to know about interrupts */
@@ -1352,7 +1378,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         instr_set_src(instr, 1, opnd_create_reg(REG_XSP));
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 2);
+        ret = (pc + 2);
+        goto loc_ret;
     }
     /* sys{enter,exit,call,ret} */
     if (byte0 == 0x0f &&
@@ -1375,14 +1402,16 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         }
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 2);
+        ret = (pc + 2);
+        goto loc_ret;
     }
     /* iret */
     if (byte0 == 0xcf) {
         instr_set_opcode(instr, OP_iret);
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 1);
+        ret = (pc + 1);
+        goto loc_ret;
     }
     /* popf */
     if (byte0 == 0x9d) {
@@ -1402,7 +1431,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
                                                 OPSZ_VARSTACK, false)));
         instr_set_dst(instr, 0, opnd_create_reg(stack_sized_reg));
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (pc + 1);
+        ret = (pc + 1);
+        goto loc_ret;
     }
 
 #ifdef UNIX
@@ -1411,7 +1441,8 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
         instr_set_opcode(instr, OP_mov_seg);
         instr_set_raw_bits(instr, start_pc, sz);
         IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
-        return (start_pc + sz);
+        ret = (start_pc + sz);
+        goto loc_ret;
     }
 #endif
 
@@ -1420,9 +1451,11 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
      */
     if (intercept_fip_save(pc, byte0, byte1)) {
         if (decode(dcontext, start_pc, instr) == NULL)
-            return NULL;
+            ret = NULL;
         else
-            return (start_pc + sz);
+            ret = (start_pc + sz);
+
+        goto loc_ret;
     }
 
     /* all non-pc-relative instructions */
@@ -1430,7 +1463,11 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
     instr_set_raw_bits(instr, start_pc, sz);
     IF_X64(instr_set_rip_rel_pos(instr, rip_rel_pos));
     /* assumption: operands are already marked invalid (instr was reset) */
-    return (start_pc + sz);
+    ret = (start_pc + sz);
+
+loc_ret:
+    YPHPRINT("End: decoding until has a CTI");
+    return ret;
 }
 
 /* Returns a pointer to the pc of the next instruction

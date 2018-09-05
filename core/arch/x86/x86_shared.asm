@@ -775,4 +775,13 @@ GLOBAL_LABEL(load_dynamo_failure:)
 
 #endif /* WINDOWS */
 
+#if defined(UNIX) && defined(X64)
+
+    DECLARE_FUNC(sgx_instr_rdtsc)
+GLOBAL_LABEL(sgx_instr_rdtsc:)
+    rdtsc
+    ret
+    END_FUNC(sgx_instr_rdtsc)
+#endif /* defined(UNIX) && defined(X64) */
+
 END_FILE

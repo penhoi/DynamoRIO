@@ -202,4 +202,22 @@ find_script_interpreter(OUT script_interpreter_t *result,
     result->argv[argc] = NULL;
     return true;
 }
+
+// #if defined(UNIX) && defined(X64)
+
+//     DECLARE_FUNC(sgx_instr_rdtsc)
+// GLOBAL_LABEL(sgx_instr_rdtsc:)
+//     rdtsc
+//     ret
+//     END_FUNC(sgx_instr_rdtsc)
+// #endif /* defined(UNIX) && defined(X64) */
+
+
+// void sgx_instr_rdtsc(uint64 llval)
+// {
+//     uint low, high;
+//     __asm__ __volatile__ ("rdtsc" : "=a"(low),"=d"(high));
+//     (llval) = ((uint64)high << 32) | low;
+// }
+
 #endif

@@ -2767,6 +2767,7 @@ client_check_syscall(instrlist_t *ilist, instr_t *inst,
 static bool
 client_process_bb(dcontext_t *dcontext, build_bb_t *bb)
 {
+    YPHPRINT();
     dr_emit_flags_t emitflags = DR_EMIT_DEFAULT;
     instr_t *inst;
     bool found_exit_cti = false;
@@ -3181,6 +3182,7 @@ client_process_bb(dcontext_t *dcontext, build_bb_t *bb)
 static void
 mangle_pre_client(dcontext_t *dcontext, build_bb_t *bb)
 {
+    YPHPRINT();
     if (bb->start_pc == (app_pc) dr_app_running_under_dynamorio) {
         /* i#1237: set return value to be true in dr_app_running_under_dynamorio */
         instr_t *ret = instrlist_last(bb->ilist);
@@ -3757,8 +3759,10 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
                     bb->exit_type |= instr_branch_type(bb->instr);
                 break;
             }
-        } else
+        }
+        else {
             instrlist_append(bb->ilist, bb->instr);
+        }
 
 #ifdef RETURN_AFTER_CALL
         if (bb->app_interp && dynamo_options.ret_after_call) {
@@ -3785,9 +3789,10 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             }
         }
 #endif
-        YPHPRINT("Begin: test the type of the ending instruction");
+        YPHPRINT("test the type of the ending instruction");
         if (instr_is_near_call_direct(bb->instr)) {
-           if (!bb_process_call_direct(dcontext, bb)) {
+            YPHPRINT(xxx);
+            if (!bb_process_call_direct(dcontext, bb)) {
                 if (bb->instr != NULL)
                     bb->exit_type |= instr_branch_type(bb->instr);
                 break;
@@ -3963,10 +3968,17 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             break;
         }
         else if (instr_is_rdtsc(bb->instr)) {
+          instr_t *call_rdtsc = INSTR_CREATE_call(dcontext, opnd_create_pc((app_pc)sgx_instr_rdtsc));
+          instr_set_raw_bits(call_rdtsc, bb->cur_pc - call_rdtsc->length, call_rdtsc->length);
+          instrlist_replace(bb->ilist, bb->instr, call_rdtsc);
+          instr_destroy(dcontext, bb->instr);
+          // bb->instr = call_rdtsc;
+          // dr_insert_call((void *)dcontext, bb->ilist, NULL/*append*/, sgx_instr_rdtsc, 0);
 
+          YPHPRINT("rdtsc is replace with calling a help function");
+          continue;
         }
 
-        YPHPRINT("End: test the type of the ending instruction");
         if (bb->cur_pc == bb->stop_pc) {
             /* We only check stop_pc for full_decode, so not in inner loop. */
             BBPRINT(bb, 3, "reached end pc "PFX", stopping\n", bb->stop_pc);
@@ -3997,6 +4009,8 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             }
         }
 
+        YPHASSERT(bb->instr != NULL);
+        YPHPRINT("Continue bb with CTI %d", bb->instr->opcode);
     } /* end of while (true) */
 
     KSTOP(bb_decoding);
