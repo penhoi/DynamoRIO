@@ -220,4 +220,19 @@ find_script_interpreter(OUT script_interpreter_t *result,
 //     (llval) = ((uint64)high << 32) | low;
 // }
 
+#include "instrument_api.h"
+void sgx_helper_rdtsc(void* drctx)
+{
+    dr_mcontext_t mctx = {.size = sizeof(dr_mcontext_t), .flags = DR_MC_INTEGER};
+      uint low, high;
+
+      __asm__ __volatile__
+      ("rdtsc" : "=a"(low),"=d"(high));
+
+    dr_get_mcontext(drctx, &mctx);
+    mctx.rax = (uint64)low;
+    mctx.rdx = (uint64)high;
+    dr_set_mcontext(drctx, &mctx);
+}
+
 #endif

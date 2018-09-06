@@ -55,7 +55,7 @@ int64 dynamorio_mach_dep_syscall(uint sysnum, uint num_args, ...);
 ptr_int_t dynamorio_mach_syscall(uint sysnum, uint num_args, ...);
 # else
 ptr_int_t dynamorio_syscall(uint sysnum, uint num_args, ...);
-uint64 sgx_instr_rdtsc(void);
+void sgx_helper_rdtsc(void* drctx);
 # endif
 #endif
 

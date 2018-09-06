@@ -814,6 +814,7 @@ void
 mangle(dcontext_t *dcontext, instrlist_t *ilist, uint *flags INOUT,
        bool mangle_calls, bool record_translation)
 {
+    YPHPRINT("Begin");
     instr_t *instr, *next_instr;
 #ifdef WINDOWS
     bool ignorable_sysenter = DYNAMO_OPTION(ignore_syscalls) &&
@@ -1003,13 +1004,13 @@ mangle(dcontext_t *dcontext, instrlist_t *ilist, uint *flags INOUT,
          * i#2144 : We look for single step exceptions generation.
          */
         else if (instr_can_set_single_step(instr) &&
-                 instr_get_opcode(instr) != OP_iret) {
+                instr_get_opcode(instr) != OP_iret) {
             /* iret is handled in mangle_return. */
             mangle_possible_single_step(dcontext, ilist, instr);
             continue;
         }
         else if (dcontext->single_step_addr != NULL && instr_is_app(instr) &&
-                 dcontext->single_step_addr == instr->translation) {
+                dcontext->single_step_addr == instr->translation) {
             instr_t * last_addr = instr_get_next_app(instr);
             /* Checks if sandboxing added another app instruction. */
             if (last_addr == NULL || last_addr->translation != instr->translation) {
@@ -1025,6 +1026,18 @@ mangle(dcontext_t *dcontext, instrlist_t *ilist, uint *flags INOUT,
             continue;
         }
 #endif
+        else if (instr_is_rdtsc(instr)) {
+            /* replace rdtsc with a help function */
+            dr_insert_clean_call(dcontext, ilist, instr,
+                    (void*)sgx_helper_rdtsc,
+                    false,  // don't save float regs
+                    1,      // 1 args
+                    OPND_CREATE_INTPTR(dcontext));
+
+            /* destroy the rdtsc instruction */
+            instrlist_remove(ilist, instr);
+            instr_destroy(dcontext, instr);
+        }
 
         if (!instr_is_cti(instr) || instr_is_meta(instr)) {
 #ifdef STEAL_REGISTER
@@ -1119,6 +1132,7 @@ mangle(dcontext_t *dcontext, instrlist_t *ilist, uint *flags INOUT,
      * the register state on a branch. */
     ASSERT(ilist->flags == 0);
     KSTOP(mangling);
+    YPHPRINT("End");
 }
 
 /***************************************************************************

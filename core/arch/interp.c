@@ -3967,17 +3967,6 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             bb_process_float_pc(dcontext, bb);
             break;
         }
-        else if (instr_is_rdtsc(bb->instr)) {
-          instr_t *call_rdtsc = INSTR_CREATE_call(dcontext, opnd_create_pc((app_pc)sgx_instr_rdtsc));
-          instr_set_raw_bits(call_rdtsc, bb->cur_pc - call_rdtsc->length, call_rdtsc->length);
-          instrlist_replace(bb->ilist, bb->instr, call_rdtsc);
-          instr_destroy(dcontext, bb->instr);
-          // bb->instr = call_rdtsc;
-          // dr_insert_call((void *)dcontext, bb->ilist, NULL/*append*/, sgx_instr_rdtsc, 0);
-
-          YPHPRINT("rdtsc is replace with calling a help function");
-          continue;
-        }
 
         if (bb->cur_pc == bb->stop_pc) {
             /* We only check stop_pc for full_decode, so not in inner loop. */
