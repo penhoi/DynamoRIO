@@ -1553,6 +1553,7 @@ mangle_seg_ref_opnd(dcontext_t *dcontext, instrlist_t *ilist,
     /* The reg should not be used by the oldop */
     ASSERT(!opnd_uses_reg(oldop, reg));
 
+    YPHPRINT("Removal the usage of fs/gs from the App? Yes, I am shocked!");
     /* XXX: this mangling is pattern-matched in translation's instr_is_seg_ref_load() */
     /* get app's segment base into reg. */
     PRE(ilist, where,
@@ -3024,6 +3025,7 @@ mangle_mov_seg(dcontext_t *dcontext, instrlist_t *ilist, instr_t *instr,
     opnd_t opnd, dst;
     opnd_size_t dst_sz;
 
+    YPHPRINT("Removal the usage of fs/gs in App?");
     ASSERT(instr_get_opcode(instr) == OP_mov_seg);
     ASSERT(instr_num_srcs(instr) == 1);
     ASSERT(instr_num_dsts(instr) == 1);
@@ -3161,6 +3163,7 @@ mangle_seg_ref(dcontext_t *dcontext, instrlist_t *ilist, instr_t *instr,
     seg = opnd_get_segment(segop);
     if (seg != SEG_GS && seg != SEG_FS)
         return;
+    YPHPRINT("Removal the usage of fs/gs from the App? Yes, I am shocked!");
 #ifdef CLIENT_INTERFACE
     if (seg == LIB_SEG_TLS && !INTERNAL_OPTION(private_loader))
         return;

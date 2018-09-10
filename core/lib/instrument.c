@@ -5481,6 +5481,7 @@ dr_insert_clean_call(void *drcontext, instrlist_t *ilist, instr_t *where,
         convert_va_list_to_opnd(drcontext, &args, num_args, ap);
         va_end(ap);
     }
+    YPHPRINT("->dr_insert_clean_call_ex_varg()");
     dr_insert_clean_call_ex_varg(drcontext, ilist, where, callee, flags, num_args, args);
     if (num_args != 0)
         free_va_opnd_list(drcontext, num_args, args);

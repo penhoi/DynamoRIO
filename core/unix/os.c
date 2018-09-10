@@ -1613,6 +1613,7 @@ os_get_priv_tls_base(dcontext_t *dcontext, reg_id_t reg)
     if (dcontext == NULL)
         return NULL;
     ostd = (os_thread_data_t *)dcontext->os_field;
+    YPHPRINT("get segbase os_thread_data_t::%s", (reg == TLS_REG_LIB) ? "ostd->priv_lib_tls_base" : "ostd->priv_alt_tls_base");
     if (reg == TLS_REG_LIB)
         return ostd->priv_lib_tls_base;
     else if (reg == TLS_REG_ALT)
@@ -1685,6 +1686,7 @@ os_get_app_tls_base(dcontext_t *dcontext, reg_id_t reg)
          */
         return get_segment_base(reg);
     }
+    YPHPRINT("get segbase os_local_state_t::%s", (reg == TLS_REG_LIB) ? "os_tls->app_lib_tls_base" : "os_tls->app_alt_tls_base");
     os_tls = get_os_tls_from_dc(dcontext);
     if (reg == TLS_REG_LIB)
         return os_tls->app_lib_tls_base;
@@ -1876,7 +1878,11 @@ os_handle_mov_seg(dcontext_t *dcontext, byte *pc)
 static void
 os_tls_app_seg_init(os_local_state_t *os_tls, void *segment)
 {
+    YPHPRINT("Initializing current DR's TLS. It will be loaded into gs_base soon");
+    YPHPRINT("Here, app, means the whole thread, consisting of App and DR. DR's TLS try to provide global real-machine view");
     app_pc app_lib_tls_base, app_alt_tls_base;
+
+    YPHPRINT("Keep app's TLS_REG_LIB and TLS_REG_ALT in DR's TLS");
 #ifdef X86
     int i, index;
     our_modify_ldt_t *desc;
@@ -1902,6 +1908,7 @@ os_tls_app_seg_init(os_local_state_t *os_tls, void *segment)
      * It works for a 32-bit application running in a 64-bit kernel.
      * It returns error value -38 for a 64-bit app in a 64-bit kernel.
      */
+    YPHPRINT("Kepp app's thread area in DR's TLS");
     desc = &os_tls->os_seg_info.app_thread_areas[0];
     tls_initialize_indices(os_tls);
     index = tls_min_index();
@@ -1909,11 +1916,12 @@ os_tls_app_seg_init(os_local_state_t *os_tls, void *segment)
         tls_get_descriptor(i + index, &desc[i]);
     }
 #endif /* X86 */
-
+    YPHPRINT("Store DR's TLS base in DR's TLS ->os_seg_info");
     os_tls->os_seg_info.dr_tls_base = segment;
     os_tls->os_seg_info.priv_alt_tls_base = IF_X86_ELSE(segment, NULL);
 
     /* now allocate the tls segment for client libraries */
+    YPHPRINT("Allocate TLS segment for DR's client libs && stored in DR's TLS ->os_seg_info");
     if (IF_CLIENT_INTERFACE_ELSE(INTERNAL_OPTION(private_loader), false)) {
         os_tls->os_seg_info.priv_lib_tls_base =
             IF_UNIT_TEST_ELSE(os_tls->app_lib_tls_base,
@@ -1940,6 +1948,9 @@ os_tls_app_seg_init(os_local_state_t *os_tls, void *segment)
 void
 os_tls_init(void)
 {
+    YPHPRINT("Allocate and Initialize DR's TLS, which is an instance of os_local_state_t");
+    YPHPRINT("Although DR's TLS && App's TLS coexist in the same thread, ");
+    YPHPRINT("the formal provides global real-machine view while the latter provide local virtual-machine view");
 #ifdef X86
     ASSERT(TLS_MAGIC_OFFSET_ASM == TLS_MAGIC_OFFSET);
     ASSERT(TLS_SELF_OFFSET_ASM == TLS_SELF_OFFSET);
@@ -1975,6 +1986,7 @@ os_tls_init(void)
     /* Verify that local_state_extended_t should indeed be used. */
     ASSERT(DYNAMO_OPTION(ibl_table_in_tls));
 
+    YPHPRINT("->os_tls_app_seg_init() && ->tls_thread_init()");
     /* initialize DR TLS seg base before replacing app's TLS in tls_thread_init */
     if (MACHINE_TLS_IS_DR_TLS)
         os_tls_app_seg_init(os_tls, segment);
@@ -2184,6 +2196,7 @@ os_tls_cfree(uint offset, uint num_slots)
 void
 os_thread_init(dcontext_t *dcontext)
 {
+    YPHPRINT("os_thread_data_t represent DR's global view of current thread, different from App's view");
     os_local_state_t *os_tls = get_os_tls();
     os_thread_data_t *ostd = (os_thread_data_t *)
         heap_alloc(dcontext, sizeof(os_thread_data_t) HEAPACCT(ACCT_OTHER));
@@ -2452,8 +2465,10 @@ os_swap_dr_tls(dcontext_t *dcontext, bool to_app)
         memcpy(ostd->clone_tls, cur_tls, sizeof(*ostd->clone_tls));
         cur_tls->magic = TLS_MAGIC_VALID;
         ostd->clone_tls->self = ostd->clone_tls;
+        YPHPRINT("->os_set_dr_tls_base() switch to App with a scratch os_local_state_t TLS");
         os_set_dr_tls_base(dcontext, NULL, (byte *)ostd->clone_tls);
     } else {
+        YPHPRINT("->os_set_dr_tls_base() switch to DR with real os_local_state_t TLS");
         /* i#2089: restore the parent's DR TLS */
         os_local_state_t *real_tls = get_os_tls_from_dc(dcontext);
         /* For dr_app_start we can end up here with nothing to do, so we check. */
@@ -2539,10 +2554,17 @@ os_using_app_state(dcontext_t *dcontext)
 void
 os_swap_context(dcontext_t *dcontext, bool to_app, dr_state_flags_t flags)
 {
-    if (os_should_swap_state())
+    YPHPRINT("Begin");
+    if (os_should_swap_state()) {
+        YPHPRINT("switching LIB_SEG_TLS between a Client and the App? ");
         os_switch_seg_to_context(dcontext, LIB_SEG_TLS, to_app);
-    if (TEST(DR_STATE_DR_TLS, flags))
+    }
+    if (TEST(DR_STATE_DR_TLS, flags)) {
+        YPHPRINT("switching SEG_TLS between DR and App?");
         os_swap_dr_tls(dcontext, to_app);
+    }
+
+    YPHPRINT("End");
 }
 
 void
@@ -6506,6 +6528,7 @@ os_switch_seg_to_base(dcontext_t *dcontext, os_local_state_t *os_tls, reg_id_t s
     switch (os_tls->tls_type) {
 # ifdef X64
     case TLS_TYPE_ARCH_PRCTL: {
+        YPHPRINT("tls_set_fs_gs_segment_base(x, seg, base, NULL)");
         res = tls_set_fs_gs_segment_base(os_tls->tls_type, seg, base, NULL);
         ASSERT(res);
         LOG(GLOBAL, LOG_THREADS, 2,
@@ -6605,6 +6628,7 @@ os_set_dr_tls_base(dcontext_t *dcontext, os_local_state_t *tls, byte *base)
         ASSERT(dcontext != NULL);
         tls = get_os_tls_from_dc(dcontext);
     }
+    YPHPRINT("->os_switch_seg_to_base(x, x, SEG_TLS, false, x), not to App?");
     return os_switch_seg_to_base(dcontext, tls, SEG_TLS, false, base);
 }
 #endif /* X86 */
@@ -6627,6 +6651,8 @@ os_switch_seg_to_context(dcontext_t *dcontext, reg_id_t seg, bool to_app)
     } else {
         base = os_get_priv_tls_base(dcontext, seg);
     }
+    YPHPRINT("get segbase from %s", to_app ? "->os_get_app_tls_base(x, seg)" : "->os_get_priv_tls_base(x, seg)");
+    YPHPRINT("->os_switch_seg_to_base()");
     return os_switch_seg_to_base(dcontext, os_tls, seg, to_app, base);
 #elif defined(AARCHXX)
     bool res = false;
@@ -9104,7 +9130,7 @@ os_walk_address_space(memquery_iter_t *iter, bool add_modules)
         LOG(GLOBAL, LOG_VMAREAS, 2,
             "start="PFX" end="PFX" prot=%x comment=%s\n",
             iter->vm_start, iter->vm_end, iter->prot, iter->comment);
-        YPHPRINT("start=0x%lx end=0x%lx prot=%x comment=%s", iter->vm_start, iter->vm_end, iter->prot, iter->comment);
+        // YPHPRINT("start=0x%lx end=0x%lx prot=%x comment=%s", iter->vm_start, iter->vm_end, iter->prot, iter->comment);
         /* Issue 89: the vdso might be loaded inside ld.so as below,
          * which causes ASSERT_CURIOSITY in mmap_check_for_module_overlap fail.
          * b7fa3000-b7fbd000 r-xp 00000000 08:01 108679     /lib/ld-2.8.90.so

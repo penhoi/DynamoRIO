@@ -306,6 +306,8 @@ privload_mod_tls_primary_thread_init(privmod_t *mod)
 void *
 privload_tls_init(void *app_tp)
 {
+    YPHPRINT("Allocate TLS segment for DR's client libs by referring App's lib TLS");
+    YPHPRINT("We skip it currently");
     size_t client_tls_alloc_size = ALIGN_FORWARD(client_tls_size, PAGE_SIZE);
     app_pc dr_tp;
     tcb_head_t *dr_tcb;

@@ -550,6 +550,7 @@ shared_gencode_init(IF_X86_64_ELSE(gencode_mode_t gencode_mode, void))
     release_final_page(gencode);
 
     DOLOG(3, LOG_EMIT, {
+        YPHPRINT("->dump_emitted_routines()");
         dump_emitted_routines(GLOBAL_DCONTEXT, GLOBAL,
                               IF_X86_64_ELSE(x86_mode ? "thread-shared x86" :
                                              "thread-shared", "thread-shared"),

@@ -444,6 +444,7 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
         if (cur_gs == NULL || is_dynamo_address(cur_gs) ||
             /* By resolving i#107, we can handle gs conflicts between app and dr. */
             INTERNAL_OPTION(mangle_app_seg)) {
+            YPHPRINT("invoke arch_prctl, load DR's TLS and Client's TLS into gsbase and fsbase");
             res = dynamorio_syscall(SYS_arch_prctl, 2, ARCH_SET_GS, segment);
             if (res >= 0) {
                 os_tls->tls_type = TLS_TYPE_ARCH_PRCTL;
@@ -657,6 +658,8 @@ tls_get_fs_gs_segment_base(uint seg)
                 "safe read of self %s => "PFX"\n", reg_names[seg], base);
             return base;
         }
+
+        YPHPRINT("invoke arch_prctl to get gsbase and fsbase");
         res = dynamorio_syscall(SYS_arch_prctl, 2,
                                 (seg == SEG_FS ? ARCH_GET_FS : ARCH_GET_GS), &base);
         if (res >= 0) {
@@ -706,6 +709,7 @@ tls_set_fs_gs_segment_base(tls_type_t tls_type, uint seg,
     switch (tls_type) {
 # ifdef X64
     case TLS_TYPE_ARCH_PRCTL: {
+        YPHPRINT("invoke arch_prctl to set gsbase and fsbase");
         int prctl_code = (seg == SEG_FS ? ARCH_SET_FS : ARCH_SET_GS);
         res = dynamorio_syscall(SYS_arch_prctl, 2, prctl_code, base);
         ASSERT(res >= 0);
@@ -825,6 +829,7 @@ tls_min_index(void)
 static void
 os_set_dr_seg(dcontext_t *dcontext, reg_id_t seg)
 {
+    YPHPRINT("->SYS_arch_prctl() to set gsbase or fsbase to ostd->priv_alt_tls_base or ostd->priv_lib_tls_base");
     int res;
     os_thread_data_t *ostd = dcontext->os_field;
     res = dynamorio_syscall(SYS_arch_prctl, 2,
@@ -839,6 +844,7 @@ tls_handle_post_arch_prctl(dcontext_t *dcontext, int code, reg_t base)
 {
     /* XXX: we can move it to pre_system_call to avoid system call. */
     /* i#107 syscalls that might change/query app's segment */
+    YPHPRINT("Begin");
     os_local_state_t *os_tls = get_os_tls();
     switch (code) {
     case ARCH_SET_FS: {
@@ -853,6 +859,7 @@ tls_handle_post_arch_prctl(dcontext_t *dcontext, int code, reg_t base)
                 os_tls->app_alt_tls_reg = read_thread_register(SEG_FS);
                 os_tls->app_alt_tls_base = (void *) base;
             }
+            YPHPRINT("ARCH_SET_FS: set %s && update the app_thread_areas", (TLS_REG_LIB == SEG_FS)?"app_lib_tls_base":"os_tls->app_alt_tls_base");
             /* update the app_thread_areas */
             ostd = (os_thread_data_t *)dcontext->os_field;
             desc = (our_modify_ldt_t *)ostd->app_thread_areas;
@@ -881,6 +888,7 @@ tls_handle_post_arch_prctl(dcontext_t *dcontext, int code, reg_t base)
             os_tls->app_alt_tls_reg = read_thread_register(SEG_GS);
             os_tls->app_alt_tls_base = (void *) base;
         }
+        YPHPRINT("ARCH_SET_GS: set %s && update the app_thread_areas", (TLS_REG_LIB == SEG_FS)?"app_lib_tls_base":"os_tls->app_alt_tls_base");
         /* update the app_thread_areas */
         ostd = (os_thread_data_t *)dcontext->os_field;
         desc = ostd->app_thread_areas;
@@ -904,5 +912,7 @@ tls_handle_post_arch_prctl(dcontext_t *dcontext, int code, reg_t base)
         "thread "TIDFMT" segment change => app lib tls base: "PFX", "
         "alt tls base: "PFX"\n",
         get_thread_id(), os_tls->app_lib_tls_base, os_tls->app_alt_tls_base);
+
+    YPHPRINT("End");
 }
 #endif /* X64 */
