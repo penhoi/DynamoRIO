@@ -1138,8 +1138,9 @@ bool bitmap_check_consistency(bitmap_t b, uint bitmap_size, uint expect_free);
 #  define DOLOG(level, mask, statement)
 #  define LOG_DECLARE(declaration)
 # endif /* INTERNAL */
-# define THREAD ((dcontext == NULL) ? INVALID_FILE : \
-                 ((dcontext == GLOBAL_DCONTEXT) ? main_logfile : dcontext->logfile))
+// # define THREAD ((dcontext == NULL) ? INVALID_FILE : ((dcontext == GLOBAL_DCONTEXT) ? main_logfile : dcontext->logfile))
+// We put all logs in the same main_logfile for understanding the workflow of DR, so use GLOBAL instead of THREAD!
+#define THREAD ((dcontext == NULL) ? INVALID_FILE : main_logfile)
 # define THREAD_GET get_thread_private_logfile()
 # define GLOBAL main_logfile
 #else  /* !DEBUG */
