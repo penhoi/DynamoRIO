@@ -431,6 +431,7 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
     uint selector;
     int index = -1;
     int res;
+    YPHPRINT("Begin");
 #ifdef X64
     /* First choice is gdt, which means arch_prctl.  Since this may fail
      * on some kernels, we require -heap_in_lower_4GB so we can fall back
@@ -439,7 +440,7 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
     byte *cur_gs;
     res = dynamorio_syscall(SYS_arch_prctl, 2, ARCH_GET_GS, &cur_gs);
     if (res >= 0) {
-        LOG(GLOBAL, LOG_THREADS, 1, "os_tls_init: cur gs base is "PFX"\n", cur_gs);
+        LOG(GLOBAL, LOG_THREADS, 1, "tls_thread_init: cur gs base is "PFX"\n", cur_gs);
         /* If we're a non-initial thread, gs will be set to the parent thread's value */
         if (cur_gs == NULL || is_dynamo_address(cur_gs) ||
             /* By resolving i#107, we can handle gs conflicts between app and dr. */
@@ -449,7 +450,7 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
             if (res >= 0) {
                 os_tls->tls_type = TLS_TYPE_ARCH_PRCTL;
                 LOG(GLOBAL, LOG_THREADS, 1,
-                    "os_tls_init: arch_prctl successful for base "PFX"\n", segment);
+                    "tls_thread_init: arch_prctl successful for gsbase to "PFX"\n", segment);
                 res = dynamorio_syscall(SYS_arch_prctl, 2, ARCH_GET_GS, &cur_gs);
                 if (res >= 0 && cur_gs != segment && !on_WSL) {
                     /* XXX i#1896: on WSL, ARCH_GET_GS is broken and does not return
@@ -459,7 +460,7 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
                      * later issues.  Without the safe read we have to abort.
                      */
                     on_WSL = true;
-                    LOG(GLOBAL, LOG_THREADS, 1, "os_tls_init: running on WSL\n");
+                    LOG(GLOBAL, LOG_THREADS, 1, "tls_thread_init: running on WSL\n");
                     if (INTERNAL_OPTION(safe_read_tls_init)) {
                         SYSLOG_INTERNAL_WARNING
                             ("Support for the Windows Subsystem for Linux is still "
@@ -476,7 +477,7 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
                 if (!dynamo_initialized &&
                     /* We assume that WSL is using MSR */
                     (on_WSL || read_thread_register(SEG_TLS) == 0)) {
-                    LOG(GLOBAL, LOG_THREADS, 1, "os_tls_init: using MSR\n");
+                    LOG(GLOBAL, LOG_THREADS, 1, "tls_thread_init: using MSR\n");
                     tls_using_msr = true;
                 }
                 if (IF_CLIENT_INTERFACE_ELSE(INTERNAL_OPTION(private_loader), false)) {
@@ -484,12 +485,14 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
                                             os_tls->os_seg_info.priv_lib_tls_base);
                     /* Assuming set fs must be successful if set gs succeeded. */
                     ASSERT(res >= 0);
+                    LOG(GLOBAL, LOG_THREADS, 1,
+                    "tls_thread_init: arch_prctl successful for fsbase to "PFX"\n", os_tls->os_seg_info.priv_lib_tls_base);
                 }
             } else {
                 /* we've found a kernel where ARCH_SET_GS is disabled */
                 ASSERT_CURIOSITY(false && "arch_prctl failed on set but not get");
                 LOG(GLOBAL, LOG_THREADS, 1,
-                    "os_tls_init: arch_prctl failed: error %d\n", res);
+                    "tls_thread_init: arch_prctl failed: error %d\n", res);
             }
         } else {
             /* FIXME PR 205276: we don't currently handle it: fall back on ldt, but
@@ -585,6 +588,7 @@ tls_thread_init(os_local_state_t *os_tls, byte *segment)
     }
 
     os_tls->ldt_index = index;
+    YPHPRINT("End");
 }
 
 /* i#2089: we skip this for non-detach */
@@ -659,7 +663,7 @@ tls_get_fs_gs_segment_base(uint seg)
             return base;
         }
 
-        YPHPRINT("invoke arch_prctl to get gsbase and fsbase");
+        YPHPRINT("invoke arch_prctl to get gsbase or fsbase");
         res = dynamorio_syscall(SYS_arch_prctl, 2,
                                 (seg == SEG_FS ? ARCH_GET_FS : ARCH_GET_GS), &base);
         if (res >= 0) {

@@ -371,6 +371,7 @@ get_dr_stats(void)
 DYNAMORIO_EXPORT int
 dynamorio_app_init(void)
 {
+    YPHPRINT("Begin");
     int size;
 
     if (!dynamo_initialized /* we do enter if nullcalls is on */) {
@@ -704,7 +705,9 @@ dynamorio_app_init(void)
                 datasec_writable_freqprot = 0;
         }
         /* this thread is now entering DR */
+        YPHPRINT("Begin: this thread is now entering DR");
         ENTERING_DR();
+        YPHPRINT("End: this thread is now entering DR");
 
 #ifdef WINDOWS
         if (DYNAMO_OPTION(early_inject)) {
@@ -732,6 +735,7 @@ dynamorio_app_init(void)
         destroy_event(never_signaled);
     }
 
+    YPHPRINT("End");
     return SUCCESS;
 }
 
@@ -1576,6 +1580,7 @@ dynamo_exit_post_detach(void)
 dcontext_t *
 create_new_dynamo_context(bool initial, byte *dstack_in, priv_mcontext_t *mc)
 {
+    YPHPRINT("Begin");
     dcontext_t *dcontext;
     size_t alloc = sizeof(dcontext_t) + proc_get_cache_line_size();
     void *alloc_start = (void *)
@@ -1617,6 +1622,7 @@ create_new_dynamo_context(bool initial, byte *dstack_in, priv_mcontext_t *mc)
             app_xsp = (byte *) mc->xsp;
         if (dstack_in == NULL) {
             dcontext->dstack = (byte *) stack_alloc(DYNAMORIO_STACK_SIZE, app_xsp);
+            YPHPRINT("Allocate stack for this dcontext_t @%p, lower bound is @p", dcontext->dstack, app_xsp);
         } else
             dcontext->dstack = dstack_in;   /* xref i#149/PR 403015 */
 #ifdef WINDOWS
@@ -1659,6 +1665,8 @@ create_new_dynamo_context(bool initial, byte *dstack_in, priv_mcontext_t *mc)
      * which is executed for each dr_app_start() and each
      * callback start
      */
+
+    YPHPRINT("End");
     return dcontext;
 }
 

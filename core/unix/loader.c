@@ -1961,6 +1961,7 @@ privload_early_inject(void **sp, byte *old_libdr_base, size_t old_libdr_size)
 
     elf_loader_destroy(&exe_ld);
 
+    YPHPRINT("Begin: before ->dynamorio_app_init()");
     /* Initialize DR *after* we map the app image.  This is consistent with our
      * old behavior, and allows the client to do things like call
      * dr_get_proc_address() on the app from dr_client_main().  We let
@@ -1994,6 +1995,7 @@ privload_early_inject(void **sp, byte *old_libdr_base, size_t old_libdr_size)
 #  endif
     }
 
+    YPHPRINT("End: before ->dynamo_start()");
     memset(&mc, 0, sizeof(mc));
     mc.xsp = (reg_t) sp;
     mc.pc = entry;

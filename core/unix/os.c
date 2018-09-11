@@ -1879,7 +1879,7 @@ static void
 os_tls_app_seg_init(os_local_state_t *os_tls, void *segment)
 {
     YPHPRINT("Initializing current DR's TLS. It will be loaded into gs_base soon");
-    YPHPRINT("Here, app, means the whole thread, consisting of App and DR. DR's TLS try to provide global real-machine view");
+    YPHPRINT("Here, app, means the target application. This function save App's TLS info to DR's TLS");
     app_pc app_lib_tls_base, app_alt_tls_base;
 
     YPHPRINT("Keep app's TLS_REG_LIB and TLS_REG_ALT in DR's TLS");
