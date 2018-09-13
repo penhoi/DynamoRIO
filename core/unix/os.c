@@ -90,6 +90,8 @@
 
 #include <dirent.h>
 
+// #define USING_SGX_PROCMAPS
+
 /* for getrlimit */
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -2922,11 +2924,15 @@ mprotect_syscall(byte *p, size_t size, uint prot)
 {
     long ret;
 
+#ifdef USING_SGX_PROCMAPS
     p = sgx_mm_itn2ext(p);
     ret = dynamorio_syscall(SYS_mprotect, 3, p, size, prot);
     if (ret == 0) {
         sgx_mm_mprotect(p, size, prot);
     }
+#else
+    ret = dynamorio_syscall(SYS_mprotect, 3, p, size, prot);
+#endif
 
     return ret;
 }
@@ -2961,6 +2967,7 @@ mmap_syscall(byte *addr, size_t len, ulong prot, ulong flags, ulong fd, ulong of
 {
     byte* ret;
 
+#ifdef USING_SGX_PROCMAPS
     addr = sgx_mm_itn2ext(addr);
 #if defined(MACOS) && !defined(X64)
     ret = return (byte *)(ptr_int_t)
@@ -2976,7 +2983,20 @@ mmap_syscall(byte *addr, size_t len, ulong prot, ulong flags, ulong fd, ulong of
         /* return internal address */
         ret = sgx_mm_mmap(ret, len, prot, flags, (int)fd, offs);
     }
+#else   //!USING_SGX_PROCMAPS
 
+#if defined(MACOS) && !defined(X64)
+    ret = return (byte *)(ptr_int_t)
+        dynamorio_syscall(SYS_mmap, 7, addr, len, prot, flags, fd,
+                /* represent 64-bit arg as 2 32-bit args */
+                offs, 0);
+#else
+    ret = (byte *)(ptr_int_t)
+        dynamorio_syscall(IF_MACOS_ELSE(SYS_mmap, IF_X64_ELSE(SYS_mmap, SYS_mmap2)), 6,
+                addr, len, prot, flags, fd, offs);
+#endif
+
+#endif  //USING_SGX_PROCMAPS
     return ret;
 }
 
@@ -2986,10 +3006,14 @@ munmap_syscall(byte *addr, size_t len)
 {
     long ret;
 
+#ifdef USING_SGX_PROCMAPS
     /* free external block */
     addr = sgx_mm_itn2ext(addr);
     sgx_mm_munmap(addr, len);
     ret = dynamorio_syscall(SYS_munmap, 2, addr, len);
+#else
+    ret = dynamorio_syscall(SYS_munmap, 2, addr, len);
+#endif
 
     return ret;
 }
@@ -6868,11 +6892,13 @@ pre_system_call(dcontext_t *dcontext)
         dcontext->sys_param2 = prot;
         dcontext->sys_param3 = flags;
 
+#ifdef USING_SGX_PROCMAPS
         /* change internal address to external address for invoking mmap */
         addr = sgx_mm_itn2ext(addr);
         *sys_param_addr(dcontext, 0) = (reg_t) addr;
         // Update sys_param0 although post_system_call doeen't use it
         dcontext->sys_param0 = (reg_t) addr;
+#endif
         break;
     }
     /* must flush stale fragments when we see munmap/mremap */
@@ -6929,9 +6955,12 @@ pre_system_call(dcontext_t *dcontext)
         memcache_remove(addr, addr + len);
         memcache_unlock();
 #endif
+
+#ifdef USING_SGX_PROCMAPS
         addr = sgx_mm_itn2ext(addr);
         *sys_param_addr(dcontext, 0) = (reg_t) addr;
         dcontext->sys_param0 = (reg_t) addr;
+#endif
         break;
     }
 #ifdef LINUX
@@ -7027,9 +7056,11 @@ pre_system_call(dcontext_t *dcontext)
             IF_NO_MEMQUERY(memcache_update_locked(addr, addr + len, new_memprot,
                                                   -1/*type unchanged*/, exists));
 
+#ifdef USING_SGX_PROCMAPS
             addr = sgx_mm_itn2ext(addr);
             *sys_param_addr(dcontext, 0) = (reg_t) addr;
             dcontext->sys_param0 = (reg_t) addr;
+#endif
         }
         break;
     }
@@ -8291,6 +8322,8 @@ post_system_call(dcontext_t *dcontext)
 #if defined(LINUX) && !defined(X64) && !defined(ARM)
         }
 #endif
+
+#ifdef USING_SGX_PROCMAPS
         if (success) {
             ulong ufd = sys_param(dcontext, 4);
             ulong offs = sys_param(dcontext, 5);
@@ -8298,6 +8331,7 @@ post_system_call(dcontext_t *dcontext)
             base = sgx_mm_mmap(base, size, prot, flags, ufd, offs);
             set_success_return_val(dcontext, (reg_t)base);
         }
+#endif
 
         process_mmap(dcontext, base, size, prot, flags _IF_DEBUG(map_type));
         break;
@@ -8339,9 +8373,11 @@ post_system_call(dcontext_t *dcontext)
                                                   info.prot,
                                                   info.type, false/*add back*/));
         }
+#ifdef USING_SGX_PROCMAPS
         if (success) {
             sgx_mm_munmap(addr, len);
         }
+#endif
         break;
     }
 #ifdef LINUX
@@ -8432,9 +8468,11 @@ post_system_call(dcontext_t *dcontext)
                                                       true/*exists*/));
             }
         }
+#ifdef USING_SGX_PROCMAPS
         if (success) {
             sgx_mm_mprotect(base, size, prot);
         }
+#endif
         break;
     }
 #ifdef ANDROID

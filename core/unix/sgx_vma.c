@@ -1,37 +1,19 @@
+/* for mmap-related #defines */
 #include <sys/types.h>
 #include <sys/mman.h>
 
-/* for open */
-#include <sys/stat.h>
-#include <fcntl.h>
-#include "../globals.h"
-#include "../hashtable.h"
-#include "../native_exec.h"
-#include <string.h>
-#include <unistd.h> /* for write and usleep and _exit */
-#include <limits.h>
-
-
-#include <dlfcn.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <signal.h>
-#include <syslog.h>             /* vsyslog */
-#include "../vmareas.h"
-#ifdef RCT_IND_BRANCH
-# include "../rct.h"
-#endif
 #ifdef LINUX
 # include "include/syscall.h"            /* our own local copy */
 #else
 # include <sys/syscall.h>
 #endif
-#include "../module_shared.h"
-#include "os_private.h"
-#include "../synch.h"
-#include "memquery.h"
-#include "ksynch.h"
 
+/* for open */
+#include <sys/stat.h>
+#include <fcntl.h>
+
+#include <string.h>
+#include <stdarg.h>
 #include "sgx_vma.h"
 
 /* add new item between llp and lln */
@@ -323,6 +305,7 @@ void sgx_mm_init_static(int first)
     }
 }
 
+#if !defined(NOT_DYNAMORIO_CORE_PROPER) && !defined(NOT_DYNAMORIO_CORE)
 
 int _sgx_mm_init_byreffing_procmaps(void)
 {
@@ -335,6 +318,7 @@ int _sgx_mm_init_byreffing_procmaps(void)
 #define HEPA_SZ 0x3ffff000
 #define MAPS_LINE_FORMAT4 "%08x-%08x %s %08x %*s %llu %4096s"
 #define MAPS_LINE_FORMAT8 "%016llx-%016llx %s %016llx %*s %llu %4096s"
+
     char buf[BUF_SZ];
     ssize_t nread;
     nread = dynamorio_syscall(SYS_read, 3, fd, buf, BUF_SZ);
@@ -358,8 +342,7 @@ int _sgx_mm_init_byreffing_procmaps(void)
 
         *r = '\0';
         szCmt[0] = '\0';
-        sscanf(line,
-                sizeof(void*) == 4 ? MAPS_LINE_FORMAT4 : MAPS_LINE_FORMAT8,
+        sscanf(line, sizeof(void*) == 4 ? MAPS_LINE_FORMAT4 : MAPS_LINE_FORMAT8,
                 (unsigned long*)&nStart, (unsigned long*)&nEnd,
                 szProt, (unsigned long*)&nOfft, &nNode, szCmt);
         line = r+1;
@@ -391,7 +374,6 @@ int _sgx_mm_init_byreffing_procmaps(void)
 
     return 0;
 }
-
 
 void sgx_mm_init(int first)
 {
@@ -441,6 +423,12 @@ void sgx_mm_init(int first)
 
     _sgx_mm_init_byreffing_procmaps();
 }
+
+#else
+
+#define sgx_mm_init(...)
+
+#endif
 
 
 /* exported for debugging */

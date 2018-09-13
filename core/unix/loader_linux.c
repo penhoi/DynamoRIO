@@ -198,8 +198,7 @@ typedef struct _dr_pthread_t {
  * more work.  The comment above should be updated as well, as we do not use
  * the app's libc inside DR.
  */
-//# define APP_LIBC_TLS_SIZE 0x400
-# define APP_LIBC_TLS_SIZE 0x0
+# define APP_LIBC_TLS_SIZE 0x400
 #elif defined(AARCHXX)
 /* FIXME i#1551, i#1569: investigate the difference between ARM and X86 on TLS.
  * On ARM, it seems that TLS variables are not put before the thread pointer
