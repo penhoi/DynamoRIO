@@ -158,6 +158,7 @@ generic_hash_destroy(dcontext_t *dcontext, generic_table_t *htable)
 void *
 generic_hash_lookup(dcontext_t *dcontext, generic_table_t *htable, ptr_uint_t key)
 {
+    YPHPRINT("->hashtable_generic_lookup()");
     generic_entry_t *e = hashtable_generic_lookup(dcontext, key, htable);
     if (e != NULL)
         return e->payload;
@@ -172,6 +173,7 @@ generic_hash_add(dcontext_t *dcontext, generic_table_t *htable, ptr_uint_t key,
         HEAP_TYPE_ALLOC(dcontext, generic_entry_t, ACCT_OTHER, PROTECTED);
     e->key = key;
     e->payload = payload;
+    YPHPRINT("->hashtable_generic_add()");
     hashtable_generic_add(dcontext, e, htable);
 }
 

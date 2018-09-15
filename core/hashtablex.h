@@ -341,7 +341,7 @@ HTNAME(hashtable_,NAME_KEY,_init_internal)
     uint i;
     uint sentinel_index;
     size_t alloc_size;
-
+    YPHPRINT("Create new hashtable %s", table->name);
     table->hash_bits = bits;
     table->hash_func = func;
     table->hash_mask_offset = hash_mask_offset;
@@ -711,6 +711,7 @@ HTNAME(hashtable_,NAME_KEY,_lookup)(dcontext_t *dcontext, ptr_uint_t tag,
 {
     ENTRY_TYPE e;
     ptr_uint_t ftag;
+    YPHPRINT("Lookup %p in hashtable %s", tag, htable->name);
     uint hindex = HASH_FUNC(tag, htable);
 #ifdef HASHTABLE_STATISTICS
     uint collision_len = 0;
@@ -917,6 +918,8 @@ HTNAME(hashtable_,NAME_KEY,_add)(dcontext_t *dcontext, ENTRY_TYPE e,
 #endif
     if (ENTRY_IS_INVALID(table->table[hindex]))
         table->unlinked_entries--;
+
+    YPHPRINT("Add entry at idx=%x in table %s", hindex, table->name);
     table->table[hindex] = e;
     ASSERT(!ENTRY_IS_INVALID(table->table[hindex]));
     LOG(THREAD_GET, LOG_HTABLE, 4,

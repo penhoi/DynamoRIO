@@ -111,7 +111,7 @@ static char comment_buf_iter[BUFSIZE];
 
 #include "instrument_api.h"
 
-#define USING_SGX_PROCMAPS
+// #define USING_SGX_PROCMAPS
 
 #define SGX_PROCMAPS_BUF_LEN   (4096*2)
 char sgx_procmaps_buf[SGX_PROCMAPS_BUF_LEN];
