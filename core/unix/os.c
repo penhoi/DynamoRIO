@@ -2586,9 +2586,11 @@ os_swap_context_go_native(dcontext_t *dcontext, dr_state_flags_t flags)
 void
 os_thread_under_dynamo(dcontext_t *dcontext)
 {
+    YPHPRINT("begin");
     os_swap_context(dcontext, false/*to dr*/, DR_STATE_GO_NATIVE);
     signal_swap_mask(dcontext, false/*to dr*/);
     start_itimer(dcontext);
+    YPHPRINT("end");
 }
 
 void
@@ -6660,6 +6662,7 @@ os_set_dr_tls_base(dcontext_t *dcontext, os_local_state_t *tls, byte *base)
 static bool
 os_switch_seg_to_context(dcontext_t *dcontext, reg_id_t seg, bool to_app)
 {
+    YPHPRINT("what's the purpose of this function?");
     os_local_state_t *os_tls = get_os_tls_from_dc(dcontext);
 #ifdef X86
     app_pc base;

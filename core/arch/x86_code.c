@@ -104,7 +104,9 @@ dynamo_start(priv_mcontext_t *mc)
         ASSERT(dcontext != NULL);
         os_thread_take_over_secondary(dcontext);
     }
+    YPHPRINT("before: ->thread_starting(dcontext)");
     thread_starting(dcontext);
+    YPHPRINT("after: ->thread_starting(dcontext)");
 
     /* Signal other threads for take over. */
     dynamorio_take_over_threads(dcontext);
@@ -129,6 +131,7 @@ dynamo_start(priv_mcontext_t *mc)
     });
 
     /* Swap stacks so dispatch is invoked outside the application. */
+    YPHPRINT("Swap stacks so dispatch is invoked outside the application");
     call_switch_stack(dcontext, dcontext->dstack, (void(*)(void*))dispatch,
                       NULL/*not on initstack*/, true/*return on error*/);
     /* In release builds, this will simply return and continue native

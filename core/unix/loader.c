@@ -1995,10 +1995,10 @@ privload_early_inject(void **sp, byte *old_libdr_base, size_t old_libdr_size)
 #  endif
     }
 
-    YPHPRINT("End: before ->dynamo_start()");
     memset(&mc, 0, sizeof(mc));
     mc.xsp = (reg_t) sp;
     mc.pc = entry;
+    YPHPRINT("End: before ->dynamo_start(). sp & pc of App is saved into mcontext");
     dynamo_start(&mc);
 }
 # endif /* !defined(STANDALONE_UNIT_TEST) && !defined(STATIC_LIBRARY) */

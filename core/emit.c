@@ -388,6 +388,7 @@ emit_fragment_common(dcontext_t *dcontext, app_pc tag,
                      bool link_fragment, bool add_to_htable,
                      fragment_t *replace_fragment)
 {
+    YPHPRINT("Begin: Emits code for ilist into the fcache, returns created fragment.");
     fragment_t  *f;
     instr_t     *inst;
     cache_pc  pc = 0;
@@ -968,6 +969,8 @@ emit_fragment_common(dcontext_t *dcontext, app_pc tag,
     SELF_PROTECT_CACHE(dcontext, NULL, READONLY);
 
     KSTOP(emit);
+
+    YPHPRINT("End");
     return f;
 }
 

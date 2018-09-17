@@ -916,6 +916,7 @@ is_cbr_of_cbr_fallthrough(linkstub_t *l)
 void
 separate_stub_create(dcontext_t *dcontext, fragment_t *f, linkstub_t *l)
 {
+    YPHPRINT("Begin: Create exit-stub");
     int emit_sz;
     cache_pc stub_pc;
     ASSERT(LINKSTUB_DIRECT(l->flags));
@@ -963,6 +964,7 @@ separate_stub_create(dcontext_t *dcontext, fragment_t *f, linkstub_t *l)
         else
             STATS_ADD(separate_bb_direct_stubs, alloc_size);
     });
+    YPHPRINT("End");
 }
 
 /* deletion says are we freeing b/c we're freeing the whole fragment,
@@ -1712,6 +1714,7 @@ debug_after_link_change(dcontext_t *dcontext, fragment_t *f, const char *msg)
 void
 link_fragment_incoming(dcontext_t *dcontext, fragment_t *f, bool new_fragment)
 {
+    YPHPRINT("Begin: linking incoming links");
     linkstub_t *l;
     LOG(THREAD, LOG_LINKS, 4, "  linking incoming links for F%d("PFX")\n",
         f->id, f->tag);
@@ -1755,6 +1758,7 @@ link_fragment_incoming(dcontext_t *dcontext, fragment_t *f, bool new_fragment)
         if (local_trace_head && !TEST(FRAG_IS_TRACE_HEAD, f->flags))
             f->flags |= FRAG_IS_TRACE_HEAD;
     }
+    YPHPRINT("End");
 }
 
 /* Link outgoing links of f to other fragments in the fcache (and
@@ -1765,6 +1769,7 @@ link_fragment_incoming(dcontext_t *dcontext, fragment_t *f, bool new_fragment)
 void
 link_fragment_outgoing(dcontext_t *dcontext, fragment_t *f, bool new_fragment)
 {
+    YPHPRINT("Begin: linking outgoing links");
     linkstub_t *l;
     LOG(THREAD, LOG_LINKS, 4, "  linking outgoing links for F%d("PFX")\n",
         f->id, f->tag);
@@ -1838,6 +1843,7 @@ link_fragment_outgoing(dcontext_t *dcontext, fragment_t *f, bool new_fragment)
 #ifdef DEBUG
     debug_after_link_change(dcontext, f, "Fragment after linking outgoing");
 #endif
+    YPHPRINT("End");
 }
 
 /* Unlinks all incoming branches into fragment f
@@ -1918,6 +1924,7 @@ unlink_fragment_outgoing(dcontext_t *dcontext, fragment_t *f)
 void
 link_new_fragment(dcontext_t *dcontext, fragment_t *f)
 {
+    YPHPRINT("Begin");
     future_fragment_t *future;
     if (TEST(FRAG_COARSE_GRAIN, f->flags)) {
         link_new_coarse_grain_fragment(dcontext, f);
@@ -1987,6 +1994,7 @@ link_new_fragment(dcontext_t *dcontext, fragment_t *f)
      */
     link_fragment_incoming(dcontext, f, true/*new*/);
     link_fragment_outgoing(dcontext, f, true/*new*/);
+    YPHPRINT("End");
 }
 
 /* Changes all incoming links to old_f to point to new_f

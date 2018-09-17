@@ -162,6 +162,7 @@ void
 patch_branch(dr_isa_mode_t isa_mode, cache_pc branch_pc, cache_pc target_pc,
              bool hot_patch)
 {
+    YPHPRINT("patch instr @%p jump to %p", branch_pc, target_pc);
     cache_pc byte_ptr = exit_cti_disp_pc(branch_pc);
     insert_relative_target(byte_ptr, target_pc, hot_patch);
 }
@@ -537,6 +538,7 @@ int
 insert_exit_stub_other_flags(dcontext_t *dcontext, fragment_t *f,
                              linkstub_t *l, cache_pc stub_pc, ushort l_flags)
 {
+    YPHPRINT("Begin: emitting exit-stub code");
     byte *pc = (byte *)stub_pc;
     cache_pc exit_target;
     bool indirect = false;
@@ -666,6 +668,8 @@ insert_exit_stub_other_flags(dcontext_t *dcontext, fragment_t *f,
     }
 
     IF_X64(ASSERT(CHECK_TRUNCATE_TYPE_int(pc - stub_pc)));
+
+    YPHPRINT("End");
     return (int) (pc - stub_pc);
 }
 

@@ -214,8 +214,8 @@ dispatch(dcontext_t *dcontext)
             }
             if (targetf == NULL) {
                 SELF_PROTECT_LOCAL(dcontext, WRITABLE);
-                targetf =
-                    build_basic_block_fragment(dcontext, dcontext->next_tag,
+                YPHPRINT("->build_basic_block_fragment() create new fragment");
+                targetf = build_basic_block_fragment(dcontext, dcontext->next_tag,
                                                0, true/*link*/, true/*visible*/
                                                _IF_CLIENT(false/*!for_trace*/)
                                                _IF_CLIENT(NULL));
@@ -229,6 +229,7 @@ dispatch(dcontext_t *dcontext)
                  * tailing the fragment_t.
                  */
                 ASSERT(USE_BB_BUILDING_LOCK_STEADY_STATE());
+                YPHPRINT("->fragment_coarse_wrapper()");
                 fragment_coarse_wrapper(&coarse_f, targetf->tag,
                                         FCACHE_ENTRY_PC(targetf));
                 targetf = &coarse_f;
@@ -240,6 +241,7 @@ dispatch(dcontext_t *dcontext)
         } while (true);
 
         if (targetf != NULL) {
+            YPHPRINT("->dispatch_enter_fcache() enter fcache");
             if (dispatch_enter_fcache(dcontext, targetf)) {
                 /* won't reach here: will re-enter dispatch() with a clean stack */
                 ASSERT_NOT_REACHED();
@@ -554,6 +556,7 @@ enter_fcache(dcontext_t *dcontext, fcache_enter_func_t entry, cache_pc pc)
     ASSERT_OWN_NO_LOCKS();
     ASSERT(dcontext->try_except.try_except_state == NULL);
 
+    YPHPRINT("Prepare to enter fcache, set target to %p", pc);
     /* prepare to enter fcache */
     LOG(THREAD, LOG_DISPATCH, 4, "fcache_enter = "PFX", target = "PFX"\n", entry, pc);
     set_fcache_target(dcontext, pc);
