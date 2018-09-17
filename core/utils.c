@@ -1787,12 +1787,7 @@ print_file(file_t f, const char *fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-#ifdef DEBUG
-    // We put all logs in the same main_logfile for understanding the workflow of DR!
-    do_file_write(main_logfile, fmt, ap);
-#else
     do_file_write(f, fmt, ap);
-#endif
     va_end(ap);
 }
 
@@ -1858,12 +1853,7 @@ print_log(file_t logfile, uint mask, uint level, const char *fmt, ...)
 
     KSTART(logging);
     va_start(ap, fmt);
-#ifdef DEBUG
-    // We put all logs in the same main_logfile for understanding the workflow of DR!
-    do_file_write(main_logfile, fmt, ap);
-#else
     do_file_write(logfile, fmt, ap);
-#endif
     va_end(ap);
     KSTOP_NOT_PROPAGATED(logging);
 }
