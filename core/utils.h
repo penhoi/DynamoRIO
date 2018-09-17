@@ -1116,7 +1116,8 @@ bool bitmap_check_consistency(bitmap_t b, uint bitmap_size, uint expect_free);
   if (stats != NULL &&                           \
       stats->loglevel >= (level) &&              \
       (stats->logmask & (mask)) != 0)  {         \
-      print_log(file, mask, level, "thread_%d:%s:%d:%s\t", dynamorio_syscall(186, 0), __FILE__, __LINE__, __FUNCTION__); \
+      dynamorio_syscall(162, 0);                  \
+      print_log(file, mask, level, "\n%s:%d:%s:\n", __FILE__, __LINE__, __FUNCTION__); \
       print_log(file, mask, level, __VA_ARGS__); \
   }} while (0)
   /* use DOELOG for customer visible logging. statement can be a {} block */
@@ -1158,7 +1159,11 @@ void print_log(file_t logfile, uint mask, uint level, const char *fmt, ...);
 void print_file(file_t f, const char *fmt, ...);
 
 #if defined(DEBUG) && !defined(STANDALONE_DECODER)
-#define YPHPRINT(FMT, ...) print_log(GLOBAL, LOG_ALL, 0, "thread_%d:%s:%d:%s:" #FMT "\n", dynamorio_syscall(186, 0), __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__)
+/* 162: sync(0), 186: gettid() */
+#define YPHPRINT(FMT, ...) do {     \
+    dynamorio_syscall(162, 0);      \
+    print_log(GLOBAL, LOG_ALL, 0, "\n%s:%d:%s:" #FMT "\n", __FILE__, __LINE__, __FUNCTION__, ##__VA_ARGS__);  \
+    } while (0)
 // #define YPHPRINT(...) print_file(STDOUT, __VA_ARGS__)
 #else
 #define YPHPRINT(...)
