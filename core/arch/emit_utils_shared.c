@@ -1909,7 +1909,7 @@ append_jmp_to_fcache_target(dcontext_t *dcontext, instrlist_t *ilist,
 
 /* Our context switch to and from the fragment cache are arranged such
  * that there is no persistent state kept on the dstack, allowing us to
- * start with a clean slate on exiting the cache.  This eliminates the
+ * start with a clean state on exiting the cache.  This eliminates the
  * need to protect our dstack from inadvertent or malicious writes.
  *
  * We do not bother to save any DynamoRIO state, even the eflags.  We clear
@@ -2491,6 +2491,7 @@ append_fcache_return_common(dcontext_t *dcontext, generated_code_t *code,
 byte *
 emit_fcache_return(dcontext_t *dcontext, generated_code_t *code, byte *pc)
 {
+    YPHPRINT("Begin");
     bool instr_targets;
     instrlist_t ilist;
     instrlist_init(&ilist);
@@ -2503,19 +2504,23 @@ emit_fcache_return(dcontext_t *dcontext, generated_code_t *code, byte *pc)
     ASSERT(pc != NULL);
     /* free the instrlist_t elements */
     instrlist_clear(dcontext, &ilist);
+    YPHPRINT("End");
     return pc;
 }
 
 byte *
 emit_fcache_enter_shared(dcontext_t *dcontext, generated_code_t *code, byte *pc)
 {
+    YPHPRINT("Begin");
     return emit_fcache_enter_common(dcontext, code, pc,
                                     false/*through xdi*/, true/*shared*/);
+    YPHPRINT("End");
 }
 
 byte *
 emit_fcache_return_shared(dcontext_t *dcontext, generated_code_t *code, byte *pc)
 {
+    YPHPRINT("Begin");
     bool instr_targets;
     instrlist_t ilist;
     instrlist_init(&ilist);
@@ -2527,12 +2532,15 @@ emit_fcache_return_shared(dcontext_t *dcontext, generated_code_t *code, byte *pc
     ASSERT(pc != NULL);
     /* free the instrlist_t elements */
     instrlist_clear(dcontext, &ilist);
+
+    YPHPRINT("End");
     return pc;
 }
 
 byte *
 emit_fcache_return_coarse(dcontext_t *dcontext, generated_code_t *code, byte *pc)
 {
+    YPHPRINT("Begin");
     bool instr_targets;
     linkstub_t *linkstub = (linkstub_t *) get_coarse_exit_linkstub();
     instrlist_t ilist;
@@ -2545,6 +2553,7 @@ emit_fcache_return_coarse(dcontext_t *dcontext, generated_code_t *code, byte *pc
     ASSERT(pc != NULL);
     /* free the instrlist_t elements */
     instrlist_clear(dcontext, &ilist);
+    YPHPRINT("End");
     return pc;
 }
 

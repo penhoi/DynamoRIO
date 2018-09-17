@@ -309,6 +309,7 @@ release_final_page(generated_code_t *code)
 static void
 shared_gencode_emit(generated_code_t *gencode _IF_X86_64(bool x86_mode))
 {
+    YPHPRINT("Begin: various thread-private routines");
     byte *pc;
     /* As ARM mode switches are inexpensive, we do not need separate gencode
      * versions and stick with Thumb for all our gencode.
@@ -480,6 +481,8 @@ shared_gencode_emit(generated_code_t *gencode _IF_X86_64(bool x86_mode))
     gencode->gen_end_pc = pc;
 
     machine_cache_sync(gencode->gen_start_pc, gencode->gen_end_pc, true);
+
+    YPHPRINT("End");
 }
 
 static void
