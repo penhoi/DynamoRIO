@@ -3791,7 +3791,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
 #endif
         YPHPRINT("test the type of the ending instruction");
         if (instr_is_near_call_direct(bb->instr)) {
-            YPHPRINT(xxx);
+            YPHPRINT("Near call");
             if (!bb_process_call_direct(dcontext, bb)) {
                 if (bb->instr != NULL)
                     bb->exit_type |= instr_branch_type(bb->instr);
@@ -3805,6 +3805,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
                  IF_ARM(/* mode-switch direct is treated as indirect */
                         || instr_get_opcode(bb->instr) == OP_blx)) {
 
+            YPHPRINT("what kind of ind?");
             /* Manage the case where we don't need to perform 'normal'
              * indirect branch processing.
              */
@@ -3913,6 +3914,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
         }
         else if (instr_is_cti(bb->instr) &&
                  (!instr_is_call(bb->instr) || instr_is_cbr(bb->instr))) {
+            YPHPRINT("What?");
             total_branches++;
             if (total_branches >= BRANCH_LIMIT) {
                 /* set type of 1st exit cti for cbr (bb->exit_type is for fall-through) */
@@ -3921,10 +3923,12 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             }
         }
         else if (instr_is_syscall(bb->instr)) {
+            YPHPRINT("syscall");
             if (!bb_process_syscall(dcontext, bb))
                 break;
         } /* end syscall */
         else if (instr_get_opcode(bb->instr) == IF_X86_ELSE(OP_int, OP_svc)) {
+            YPHPRINT("What?");
             /* non-syscall int */
             if (!bb_process_interrupt(dcontext, bb))
                 break;
@@ -3953,17 +3957,20 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
          * we perform a simple coarse-grain check here.
          */
         else if (instr_is_sse_or_sse2(bb->instr)) {
+            YPHPRINT("sse?");
             FATAL_USAGE_ERROR(CHECK_RETURNS_SSE2_XMM_USED, 2,
                               get_application_name(), get_application_pid());
         }
 #endif
 #if defined(UNIX) && !defined(DGC_DIAGNOSTICS) && defined(X86)
         else if (instr_get_opcode(bb->instr) == OP_mov_seg) {
+            YPHPRINT("What this?");
             if (!bb_process_mov_seg(dcontext, bb))
                 break;
         }
 #endif
         else if (instr_saves_float_pc(bb->instr)) {
+            YPHPRINT("What?");
             bb_process_float_pc(dcontext, bb);
             break;
         }
@@ -3998,8 +4005,8 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             }
         }
 
-        YPHASSERT(bb->instr != NULL);
-        YPHPRINT("Continue bb with CTI %d", bb->instr->opcode);
+        // YPHASSERT(bb->instr != NULL);
+        // YPHPRINT("Continue bb with CTI %d", bb->instr->opcode);
     } /* end of while (true) */
 
     KSTOP(bb_decoding);
@@ -4372,6 +4379,7 @@ build_bb_ilist(dcontext_t *dcontext, build_bb_t *bb)
             bb->exit_type, bb->exit_target);
         instr_exit_branch_set_type(exit_instr, bb->exit_type);
 
+        YPHPRINT("append an additional jump instruciton to target %p", bb->exit_target);
         instrlist_append(bb->ilist, exit_instr);
 #ifdef ARM
         if (bb->svc_pred != DR_PRED_NONE) {
