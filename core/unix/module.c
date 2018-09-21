@@ -69,6 +69,7 @@ os_module_area_init(module_area_t *ma, app_pc base, size_t view_size,
                     bool at_map, const char *filepath, uint64 inode
                     HEAPACCT(which_heap_t which))
 {
+    YPHPRINT("Begin");
     app_pc mod_base, mod_end;
     ptr_int_t load_delta;
     char *soname = NULL;
@@ -87,6 +88,7 @@ os_module_area_init(module_area_t *ma, app_pc base, size_t view_size,
     }
     if (ma->os_data.contiguous) {
         app_pc map_end = ma->os_data.segments[ma->os_data.num_segments-1].end;
+        YPHPRINT("->module_list_add_mapping()");
         module_list_add_mapping(ma, base, map_end);
         /* update, since may just be 1st segment size */
         ma->end = map_end;
@@ -112,6 +114,7 @@ os_module_area_init(module_area_t *ma, app_pc base, size_t view_size,
                 if (!ma->os_data.segments[i - 1].shared ||
                     !vmvector_overlap(loaded_module_areas, seg_base,
                                       ma->os_data.segments[i - 1].end)) {
+                    YPHPRINT("->module_list_add_mapping()");
                     module_list_add_mapping(ma, seg_base,
                                             ma->os_data.segments[i - 1].end);
                 }
@@ -120,8 +123,10 @@ os_module_area_init(module_area_t *ma, app_pc base, size_t view_size,
         }
         if (!ma->os_data.segments[i - 1].shared ||
             !vmvector_overlap(loaded_module_areas, seg_base,
-                              ma->os_data.segments[i - 1].end))
+                              ma->os_data.segments[i - 1].end)) {
+            YPHPRINT("->module_list_add_mapping()");
             module_list_add_mapping(ma, seg_base, ma->os_data.segments[i - 1].end);
+        }
         DOLOG(2, LOG_VMAREAS, {
             LOG(GLOBAL, LOG_INTERP|LOG_VMAREAS, 2, "segment list\n");
             for (i = 0; i < ma->os_data.num_segments; i++) {
@@ -197,6 +202,7 @@ os_module_area_init(module_area_t *ma, app_pc base, size_t view_size,
         ma->os_data.checksum = crc32((const char *)ma->start, PAGE_SIZE);
     }
     /* Timestamp we just leave as 0 */
+    YPHPRINT("End");
 }
 
 void

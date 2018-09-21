@@ -781,6 +781,7 @@ print_vm_area(vm_area_vector_t *v, vm_area_t *area, file_t outf, const char *pre
 static void
 print_vm_areas(vm_area_vector_t *v, file_t outf)
 {
+    YPHPRINT("%s", v->name);
     int i;
     ASSERT_VMAREA_VECTOR_PROTECTED(v, READWRITE);
     for (i = 0; i < v->length; i++) {
@@ -839,6 +840,7 @@ vm_area_vector_check_size(vm_area_vector_t *v)
      * protected */
     /* check if at capacity */
     if (v->size == v->length){
+        YPHPRINT("Begin: Alloc or realloc buffer to this vm_area_vector %p", v);
         if (v->length == 0) {
             v->size = INTERNAL_OPTION(vmarea_initial_size);
             v->buf = (vm_area_t*) global_heap_alloc(v->size*sizeof(struct vm_area_t)
@@ -854,6 +856,11 @@ vm_area_vector_check_size(vm_area_vector_t *v)
             v->size = new_size;
         }
         ASSERT(v->buf != NULL);
+
+        YPHPRINT("End");
+    }
+    else {
+        YPHPRINT("Have enough capacity");
     }
 }
 
@@ -908,6 +915,7 @@ static void
 add_vm_area(vm_area_vector_t *v, app_pc start, app_pc end,
             uint vm_flags, uint frag_flags, void *data _IF_DEBUG(const char *comment))
 {
+    YPHPRINT("Begin: add vm_area in %s", v->name);
     int i, j, diff;
     /* if we have overlap, we extend an existing area -- else we add a new area */
     int overlap_start = -1, overlap_end = -1;
@@ -919,8 +927,8 @@ add_vm_area(vm_area_vector_t *v, app_pc start, app_pc end,
     ASSERT_VMAREA_VECTOR_PROTECTED(v, WRITE);
     LOG(GLOBAL, LOG_VMAREAS, 4, "in add_vm_area%s "PFX" "PFX" %s\n",
         (v == executable_areas ? " executable_areas" :
-         (v == IF_LINUX_ELSE(all_memory_areas, NULL) ? " all_memory_areas" :
-          (v == dynamo_areas ? " dynamo_areas" : ""))), start, end, comment);
+        (v == IF_LINUX_ELSE(all_memory_areas, NULL) ? " all_memory_areas" :
+        (v == dynamo_areas ? " dynamo_areas" : ""))), start, end, comment);
     /* N.B.: new area could span multiple existing areas! */
     for (i = 0; i < v->length; i++) {
         /* look for overlap, or adjacency of same type (including all flags, and never
@@ -1135,6 +1143,7 @@ add_vm_area(vm_area_vector_t *v, app_pc start, app_pc end,
     }
 
     if (overlap_start == -1) {
+        YPHPRINT("Begin: Create a brand-new area");
         /* brand-new area, goes before v->buf[i] */
         struct vm_area_t new_area = {start, end, vm_flags, frag_flags, /* rest 0 */};
 #ifdef DEBUG
@@ -1179,6 +1188,7 @@ add_vm_area(vm_area_vector_t *v, app_pc start, app_pc end,
                 STATS_TRACK_MAX(max_modareas_length, v->length);
         });
 #endif
+        YPHPRINT("End: Create a brand-new area");
     } else {
         /* overlaps one or more areas, modify first to equal entire range,
          * delete rest
@@ -1243,6 +1253,7 @@ add_vm_area(vm_area_vector_t *v, app_pc start, app_pc end,
         }
     }
     DOLOG(5, LOG_VMAREAS, { print_vm_areas(v, GLOBAL); });
+    YPHPRINT("End");
 }
 
 static void
@@ -1892,6 +1903,7 @@ vmvector_add(vm_area_vector_t *v, app_pc start, app_pc end, void *data)
     bool release_lock; /* 'true' means this routine needs to unlock */
     LOCK_VECTOR(v, release_lock, write);
     ASSERT_OWN_WRITE_LOCK(SHOULD_LOCK_VECTOR(v), &v->lock);
+    YPHPRINT("->add_vm_area()");
     add_vm_area(v, start, end, 0, 0, data _IF_DEBUG(""));
     UNLOCK_VECTOR(v, release_lock, write);
 }
@@ -2773,6 +2785,7 @@ add_executable_vm_area(app_pc start, app_pc end, uint vm_flags, uint frag_flags,
 bool
 add_executable_region(app_pc start, size_t size _IF_DEBUG(const char *comment))
 {
+    YPHPRINT("->add_executable_vm_area()");
     return add_executable_vm_area(start, start+size, 0, 0, false/*no lock*/
                                   _IF_DEBUG(comment));
 }
@@ -3626,6 +3639,7 @@ bool
 add_dynamo_vm_area(app_pc start, app_pc end, uint prot, bool unmod_image
                    _IF_DEBUG(const char *comment))
 {
+    YPHPRINT("Begin");
     uint vm_flags = (TEST(MEMPROT_WRITE, prot) ? VM_WRITABLE : 0) |
                     (unmod_image ? VM_UNMOD_IMAGE : 0);
     /* case 3045: areas inside the vmheap reservation are not added to the list */
@@ -3637,10 +3651,12 @@ add_dynamo_vm_area(app_pc start, app_pc end, uint prot, bool unmod_image
     if (!dynamo_areas_uptodate)
         update_dynamo_vm_areas(true);
     ASSERT(!vm_area_overlap(dynamo_areas, start, end));
+    YPHPRINT("->add_vm_area() && ->update_all_memory_areas()");
     add_vm_area(dynamo_areas, start, end, vm_flags, 0 /* frag_flags */,
                 NULL _IF_DEBUG(comment));
     update_all_memory_areas(start, end, prot,
                             unmod_image ? DR_MEMTYPE_IMAGE : DR_MEMTYPE_DATA);
+    YPHPRINT("End");
     return true;
 }
 
@@ -6082,7 +6098,7 @@ app_memory_allocation(dcontext_t *dcontext, app_pc base, size_t size, uint prot,
         }
     });
 #endif
-    YPHPRINT("%s", TEST(MEMPROT_EXEC, prot) ? "EXEC" : "Non-exec");
+    // YPHPRINT("%s", TEST(MEMPROT_EXEC, prot) ? "EXEC" : "Non-exec");
 
     /* no current policies allow non-x code at allocation time onto exec list */
     if (!TEST(MEMPROT_EXEC, prot))
@@ -6111,6 +6127,7 @@ app_memory_allocation(dcontext_t *dcontext, app_pc base, size_t size, uint prot,
             /* all images start out with coarse-grain management */
             frag_flags |= FRAG_COARSE_GRAIN;
         }
+        YPHPRINT("->add_executable_vm_area()");
         add_executable_vm_area(base, base + size, image ? VM_UNMOD_IMAGE : 0, frag_flags,
                                false/*no lock*/ _IF_DEBUG(comment));
         return true;

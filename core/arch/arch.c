@@ -3423,7 +3423,7 @@ dump_mcontext(priv_mcontext_t *context, file_t f, bool dump_xml)
                );
 
 #ifdef X86
-    if (preserve_xmm_caller_saved()) {
+    if (false && preserve_xmm_caller_saved()) {
         int i, j;
         for (i=0; i<NUM_SIMD_SAVED; i++) {
             if (YMM_ENABLED()) {

@@ -1026,7 +1026,7 @@ mangle(dcontext_t *dcontext, instrlist_t *ilist, uint *flags INOUT,
             continue;
         }
 #endif
-        else if (instr_is_rdtsc(instr)) {
+        else if (false && instr_is_rdtsc(instr)) {
             /* replace rdtsc with a help function */
             dr_insert_clean_call(dcontext, ilist, instr,
                     (void*)sgx_helper_rdtsc,

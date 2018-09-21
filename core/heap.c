@@ -668,6 +668,7 @@ vmm_in_same_block(vm_addr_t p1, vm_addr_t p2)
 static void
 vmm_dump_map(vm_heap_t *vmh)
 {
+    return; // We don't want to dump
     uint i;
     bitmap_element_t *b = vmh->blocks;
     uint bitmap_size = vmh->num_blocks;
@@ -3633,41 +3634,41 @@ common_heap_alloc(thread_units_t *tu, size_t size HEAPACCT(which_heap_t which))
 
         ACCOUNT_FOR_ALLOC(alloc_new, tu, which, alloc_size, aligned_size);
     }
-    DOSTATS({
-        /* do this before done_allocating: want to ignore special-unit allocs */
-        ATOMIC_ADD(int, block_count[bucket], 1);
-        ATOMIC_ADD(int, block_total_count[bucket], 1);
-        /* FIXME: should atomically store inc-ed val in temp to avoid races w/ max */
-        ATOMIC_MAX(int, block_peak_count[bucket], block_count[bucket]);
-        ASSERT(CHECK_TRUNCATE_TYPE_uint(alloc_size - aligned_size));
-        ATOMIC_ADD(int, block_wasted[bucket], (int) (alloc_size - aligned_size));
-        /* FIXME: should atomically store val in temp to avoid races w/ max */
-        ATOMIC_MAX(int, block_peak_wasted[bucket], block_wasted[bucket]);
-        if (aligned_size > size) {
-            ASSERT(CHECK_TRUNCATE_TYPE_uint(aligned_size - size));
-            ATOMIC_ADD(int, block_align_pad[bucket], (int) (aligned_size - size));
-            /* FIXME: should atomically store val in temp to avoid races w/ max */
-            ATOMIC_MAX(int, block_peak_align_pad[bucket], block_align_pad[bucket]);
-            STATS_ADD_PEAK(heap_align, aligned_size - size);
-            LOG(GLOBAL, LOG_STATS, 5,
-                "alignment mismatch: %s ask %d, aligned is %d -> %d pad\n",
-                IF_HEAPACCT_ELSE(whichheap_name[which], ""),
-                size, aligned_size, aligned_size-size);
-        }
-        if (bucket == BLOCK_TYPES-1) {
-            STATS_ADD(heap_headers, HEADER_SIZE);
-            STATS_INC(heap_allocs_variable);
-        } else {
-            STATS_INC(heap_allocs_buckets);
-            if (alloc_size > aligned_size) {
-                STATS_ADD_PEAK(heap_bucket_pad, alloc_size - aligned_size);
-                LOG(GLOBAL, LOG_STATS, 5,
-                    "bucket mismatch: %s ask (aligned) %d, got %d, -> %d\n",
-                    IF_HEAPACCT_ELSE(whichheap_name[which], ""),
-                    aligned_size, alloc_size, alloc_size-aligned_size);
-            }
-        }
-    });
+    // DOSTATS({
+    //     /* do this before done_allocating: want to ignore special-unit allocs */
+    //     ATOMIC_ADD(int, block_count[bucket], 1);
+    //     ATOMIC_ADD(int, block_total_count[bucket], 1);
+    //     /* FIXME: should atomically store inc-ed val in temp to avoid races w/ max */
+    //     ATOMIC_MAX(int, block_peak_count[bucket], block_count[bucket]);
+    //     ASSERT(CHECK_TRUNCATE_TYPE_uint(alloc_size - aligned_size));
+    //     ATOMIC_ADD(int, block_wasted[bucket], (int) (alloc_size - aligned_size));
+    //     /* FIXME: should atomically store val in temp to avoid races w/ max */
+    //     ATOMIC_MAX(int, block_peak_wasted[bucket], block_wasted[bucket]);
+    //     if (aligned_size > size) {
+    //         ASSERT(CHECK_TRUNCATE_TYPE_uint(aligned_size - size));
+    //         ATOMIC_ADD(int, block_align_pad[bucket], (int) (aligned_size - size));
+    //         /* FIXME: should atomically store val in temp to avoid races w/ max */
+    //         ATOMIC_MAX(int, block_peak_align_pad[bucket], block_align_pad[bucket]);
+    //         STATS_ADD_PEAK(heap_align, aligned_size - size);
+    //         LOG(GLOBAL, LOG_STATS, 5,
+    //             "alignment mismatch: %s ask %d, aligned is %d -> %d pad\n",
+    //             IF_HEAPACCT_ELSE(whichheap_name[which], ""),
+    //             size, aligned_size, aligned_size-size);
+    //     }
+    //     if (bucket == BLOCK_TYPES-1) {
+    //         STATS_ADD(heap_headers, HEADER_SIZE);
+    //         STATS_INC(heap_allocs_variable);
+    //     } else {
+    //         STATS_INC(heap_allocs_buckets);
+    //         if (alloc_size > aligned_size) {
+    //             STATS_ADD_PEAK(heap_bucket_pad, alloc_size - aligned_size);
+    //             LOG(GLOBAL, LOG_STATS, 5,
+    //                 "bucket mismatch: %s ask (aligned) %d, got %d, -> %d\n",
+    //                 IF_HEAPACCT_ELSE(whichheap_name[which], ""),
+    //                 aligned_size, alloc_size, alloc_size-aligned_size);
+    //         }
+    //     }
+    // });
  done_allocating:
 #ifdef DEBUG_MEMORY
     if (bucket == BLOCK_TYPES-1 && check_alloc_size <= MAXROOM) {

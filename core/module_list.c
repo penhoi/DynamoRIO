@@ -121,6 +121,7 @@ static module_area_t *
 module_area_create(app_pc base, size_t view_size, bool at_map, const char *filepath
                    _IF_UNIX(uint64 inode))
 {
+    YPHPRINT("Create a module_area_t");
     module_area_t *ma =
         HEAP_TYPE_ALLOC(GLOBAL_DCONTEXT, module_area_t, ACCT_VMAREAS, PROTECTED);
     memset(ma, 0, sizeof(*ma));
@@ -247,6 +248,7 @@ void
 module_list_add(app_pc base, size_t view_size, bool at_map, const char *filepath
                 _IF_UNIX(uint64 inode))
 {
+    YPHPRINT("Begin: add module");
     ASSERT(loaded_module_areas != NULL);
     ASSERT(!vmvector_overlap(loaded_module_areas, base, base+view_size));
     os_get_module_info_write_lock();
@@ -288,6 +290,7 @@ module_list_add(app_pc base, size_t view_size, bool at_map, const char *filepath
         /* do nothing */
     }
     os_get_module_info_write_unlock();
+    YPHPRINT("End: add module");
 }
 
 void

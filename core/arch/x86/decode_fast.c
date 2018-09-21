@@ -1009,7 +1009,7 @@ intercept_fip_save(byte *pc, byte byte0, byte byte1)
 byte *
 decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
 {
-    YPHPRINT("Begin: decoding until has a CTI");
+    // YPHPRINT("Begin: decoding until has a CTI");
     byte byte0, byte1;
     byte *start_pc = pc;
     byte *ret = NULL;
@@ -1466,7 +1466,7 @@ decode_cti(dcontext_t *dcontext, byte *pc, instr_t *instr)
     ret = (start_pc + sz);
 
 loc_ret:
-    YPHPRINT("End: decoding until has a CTI");
+    // YPHPRINT("End: decoding until has a CTI");
     return ret;
 }
 

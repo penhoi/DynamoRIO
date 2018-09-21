@@ -2143,7 +2143,7 @@ decode_common(dcontext_t *dcontext, byte *pc, byte *orig_pc, instr_t *instr)
 byte *
 decode(dcontext_t *dcontext, byte *pc, instr_t *instr)
 {
-    YPHPRINT("Decode one instruction each time");
+    // YPHPRINT("Decode one instruction each time");
     return decode_common(dcontext, pc, pc, instr);
 }
 

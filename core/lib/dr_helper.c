@@ -229,10 +229,10 @@ void sgx_helper_rdtsc(void* drctx)
       __asm__ __volatile__
       ("rdtsc" : "=a"(low),"=d"(high));
 
-    dr_get_mcontext(drctx, &mctx);
+    // dr_get_mcontext(drctx, &mctx);
     mctx.rax = (uint64)low;
     mctx.rdx = (uint64)high;
-    dr_set_mcontext(drctx, &mctx);
+    // dr_set_mcontext(drctx, &mctx);
 }
 
 #endif

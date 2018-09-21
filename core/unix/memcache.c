@@ -218,6 +218,7 @@ sync_all_memory_areas(void)
 static void
 add_all_memory_area(app_pc start, app_pc end, uint prot, int type, bool shareable)
 {
+    YPHPRINT("Begin:");
     allmem_info_t *info;
     ASSERT(ALIGNED(start, PAGE_SIZE));
     ASSERT_OWN_WRITE_LOCK(true, &all_memory_areas->lock);
@@ -230,7 +231,9 @@ add_all_memory_area(app_pc start, app_pc end, uint prot, int type, bool shareabl
     info->type = type;
     info->shareable = shareable;
     info->vdso = (start == vsyscall_page_start);
+    YPHPRINT("->vmvector_add()");
     vmvector_add(all_memory_areas, start, end, (void *)info);
+    YPHPRINT("End");
 }
 
 void

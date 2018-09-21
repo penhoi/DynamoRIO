@@ -89,6 +89,7 @@ struct vm_area_vector_t {
      * to perform a read (don't need full recursive lock)
      */
     read_write_lock_t lock;
+    char name[32];
 
     /* Callbacks to support payloads */
     /* Frees a payload */
@@ -116,8 +117,10 @@ struct vm_area_vector_t {
 /* vm_area_vectors should NOT be declared statically if their locks need to be
  * accessed on a regular basis.  Instead, allocate them on the heap with this macro:
  */
+extern char * strncpy(char *dst, const char *src, size_t n);
 #define VMVECTOR_ALLOC_VECTOR(v, dc, flags, lockname) do {    \
         v = vmvector_create_vector((dc), (flags));            \
+        strncpy(v->name, #v, 32);                             \
         ASSIGN_INIT_READWRITE_LOCK_FREE((v)->lock, lockname); \
     } while (0);
 
