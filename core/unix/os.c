@@ -7797,6 +7797,7 @@ all_memory_areas_unlock(void)
 void
 update_all_memory_areas(app_pc start, app_pc end, uint prot, int type)
 {
+    YPHPRINT("->memcache_update()");
     IF_NO_MEMQUERY(memcache_update(start, end, prot, type));
 }
 
@@ -9360,6 +9361,7 @@ os_walk_address_space(memquery_iter_t *iter, bool add_modules)
 int
 find_executable_vm_areas(void)
 {
+    YPHPRINT("Begin");
     int count;
     memquery_iter_t iter;
     memquery_iterator_start(&iter, NULL, true/*may alloc*/);
@@ -9371,6 +9373,7 @@ find_executable_vm_areas(void)
     /* now that we have the modules set up, query libc */
     get_libc_errno_location(true/*force init*/);
 
+    YPHPRINT("End");
     return count;
 }
 

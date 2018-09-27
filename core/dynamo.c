@@ -513,6 +513,7 @@ dynamorio_app_init(void)
             earliest_inject_cleanup(dr_earliest_inject_args);
 #endif
 
+        YPHPRINT("->dynamo_vm_areas_init()");
         dynamo_vm_areas_init();
         decode_init();
         proc_init();
@@ -560,6 +561,7 @@ dynamorio_app_init(void)
         kstat_init();
 #endif
         monitor_init();
+        YPHPRINT("->fcache_init()");
         fcache_init();
         link_init();
         fragment_init();
@@ -620,6 +622,7 @@ dynamorio_app_init(void)
         /* i#117/PR 395156: it'd be nice to have mc here but would
          * require changing start/stop API
          */
+        YPHPRINT("->dynamo_thread_init()");
         dynamo_thread_init(NULL, NULL _IF_CLIENT_INTERFACE(false));
 #ifdef UNIX
         /* i#27: we need to special-case the 1st thread */
@@ -636,6 +639,7 @@ dynamorio_app_init(void)
          * This means vm_areas_thread_init() runs before vm_areas_init().
          */
         if (!DYNAMO_OPTION(thin_client)) {
+            YPHPRINT("->vm_areas_init()");
             vm_areas_init();
 #ifdef RCT_IND_BRANCH
             /* relies on is_in_dynamo_dll() which needs vm_areas_init */
@@ -644,6 +648,7 @@ dynamorio_app_init(void)
         } else {
             /* This is needed to handle exceptions in thin_client mode, mostly
              * internal ones, but can be app ones too. */
+            YPHPRINT("->find_dynamo_library_vm_areas()");
             dynamo_vm_areas_lock();
             find_dynamo_library_vm_areas();
             dynamo_vm_areas_unlock();
@@ -2256,6 +2261,7 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
         return -1;
     }
 
+    YPHPRINT("->os_tls_init()");
     os_tls_init();
     dcontext = create_new_dynamo_context(true/*initial*/, dstack_in, mc);
     initialize_dynamo_context(dcontext);
@@ -2344,10 +2350,13 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
     arch_thread_init(dcontext);
     synch_thread_init(dcontext);
 
-    if (!DYNAMO_OPTION(thin_client))
+    if (!DYNAMO_OPTION(thin_client)) {
+        YPHPRINT("->vm_areas_thread_init()");
         vm_areas_thread_init(dcontext);
+    }
 
     monitor_thread_init(dcontext);
+    YPHPRINT("->fcache_thread_init()");
     fcache_thread_init(dcontext);
     link_thread_init(dcontext);
     fragment_thread_init(dcontext);

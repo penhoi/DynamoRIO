@@ -823,12 +823,14 @@ fcache_reset_init(void)
         return;
 
     if (DYNAMO_OPTION(shared_bbs)) {
+        YPHPRINT("shared_cache_bb = fcache_cache_init()");
         shared_cache_bb = fcache_cache_init(GLOBAL_DCONTEXT, FRAG_SHARED, true);
         ASSERT(shared_cache_bb != NULL);
         LOG(GLOBAL, LOG_CACHE, 1, "Initial shared bb cache is %d KB\n",
             shared_cache_bb->init_unit_size/1024);
     }
     if (DYNAMO_OPTION(shared_traces)) {
+        YPHPRINT("shared_cache_trace = fcache_cache_init()");
         shared_cache_trace = fcache_cache_init(GLOBAL_DCONTEXT,
                                                FRAG_SHARED|FRAG_IS_TRACE, true);
         ASSERT(shared_cache_trace != NULL);
@@ -866,6 +868,7 @@ fcache_init()
     allunits->units_to_free = NULL;
     allunits->units_to_free_tail = NULL;
 
+    YPHPRINT("->fcache_reset_init()");
     fcache_reset_init();
 }
 
@@ -1369,6 +1372,7 @@ fcache_create_unit(dcontext_t *dcontext, fcache_t *cache, cache_pc pc, size_t si
         u->size = commit_size;
         u->end_pc = u->start_pc + commit_size;
         u->reserved_end_pc = u->start_pc + size;
+        YPHPRINT("->vmvector_add(fcache_unit_areas, ...)");
         vmvector_add(fcache_unit_areas, u->start_pc, u->reserved_end_pc, (void *) u);
         RSTATS_ADD_PEAK(fcache_combined_capacity, u->size);
 
@@ -1527,6 +1531,7 @@ fcache_free_unit(dcontext_t *dcontext, fcache_unit_t *unit, bool dealloc_or_reus
 static fcache_t *
 fcache_cache_init(dcontext_t *dcontext, uint flags, bool initial_unit)
 {
+    YPHPRINT("Begin");
     fcache_t *cache = (fcache_t *)
         nonpersistent_heap_alloc(dcontext, sizeof(fcache_t) HEAPACCT(ACCT_MEM_MGT));
     cache->fifo = NULL;
@@ -1565,12 +1570,16 @@ fcache_cache_init(dcontext_t *dcontext, uint flags, bool initial_unit)
 #endif
     if (cache->is_shared)
         ASSIGN_INIT_LOCK_FREE(cache->lock, shared_cache_lock);
+
     if (initial_unit) {
+        YPHPRINT("->fcache_create_unit()");
         PROTECT_CACHE(cache, lock);
         cache->units = fcache_create_unit(dcontext, cache, NULL, cache->init_unit_size);
         PROTECT_CACHE(cache, unlock);
-    } else
+    }
+    else {
         cache->units = NULL;
+    }
     cache->num_regenerated = 0;
     cache->num_replaced = 0;
     cache->wset_check = 0;
@@ -1589,6 +1598,7 @@ fcache_cache_init(dcontext_t *dcontext, uint flags, bool initial_unit)
                    sizeof(cache->free_size_histogram));
         });
     }
+    YPHPRINT("End");
     return cache;
 }
 

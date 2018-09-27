@@ -222,6 +222,7 @@ module_list_add_mapping(module_area_t *ma, app_pc map_start, app_pc map_end)
      * lookup/add.
      */
     ASSERT(os_get_module_info_write_locked());
+    YPHPRINT("->vmvector_add(loaded_module_areas, ...)");
     vmvector_add(loaded_module_areas, map_start, map_end, ma);
     LOG(GLOBAL, LOG_INTERP|LOG_VMAREAS, 2, "\tmodule %s segment ["PFX","PFX"] added\n",
         (GET_MODULE_NAME(&ma->names) == NULL) ? "<no name>" :

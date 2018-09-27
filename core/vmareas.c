@@ -915,7 +915,7 @@ static void
 add_vm_area(vm_area_vector_t *v, app_pc start, app_pc end,
             uint vm_flags, uint frag_flags, void *data _IF_DEBUG(const char *comment))
 {
-    YPHPRINT("Begin: add vm_area in %s", v->name);
+    YPHPRINT("Begin: add a vm_area in %s", v->name);
     int i, j, diff;
     /* if we have overlap, we extend an existing area -- else we add a new area */
     int overlap_start = -1, overlap_end = -1;
@@ -1253,7 +1253,7 @@ add_vm_area(vm_area_vector_t *v, app_pc start, app_pc end,
         }
     }
     DOLOG(5, LOG_VMAREAS, { print_vm_areas(v, GLOBAL); });
-    YPHPRINT("End");
+    YPHPRINT("End: add a vm_area in %s", v->name);
 }
 
 static void
@@ -1588,7 +1588,7 @@ dynamo_vm_areas_init()
 int
 vm_areas_init()
 {
-    YPHPRINT("Begin");
+    YPHPRINT("------------------Begin------------------");
     int areas;
 
     /* Case 7957: we allocate all vm vectors on the heap for self-prot reasons.
@@ -1641,6 +1641,7 @@ vm_areas_init()
     /* initialize dynamo list first */
     LOG(GLOBAL, LOG_VMAREAS, 2,
         "\n------------------------------------------------------------------------\n");
+    YPHPRINT("->find_dynamo_library_vm_areas()");
     dynamo_vm_areas_lock();
     areas = find_dynamo_library_vm_areas();
     dynamo_vm_areas_unlock();
@@ -1650,6 +1651,7 @@ vm_areas_init()
      * won't go adding rwx regions, like the linux stack, to our list, even w/
      * -executable_if_alloc
      */
+    YPHPRINT("->find_executable_vm_areas()");
     areas = find_executable_vm_areas();
     DOLOG(1, LOG_VMAREAS, {
         if (areas > 0) {
@@ -1660,7 +1662,7 @@ vm_areas_init()
             "------------------------------------------------------------------------\n");
     });
 
-    YPHPRINT("End");
+    YPHPRINT("------------------End------------------");
     return areas;
 }
 
@@ -2545,7 +2547,7 @@ add_executable_vm_area_helper(app_pc start, app_pc end, uint vm_flags, uint frag
                               coarse_info_t *info _IF_DEBUG(const char *comment))
 {
     ASSERT_OWN_WRITE_LOCK(true, &executable_areas->lock);
-
+    YPHPRINT("Begin: >add_vm_area(executable_areas, ...)");
     add_vm_area(executable_areas, start, end,
                 vm_flags, frag_flags, NULL _IF_DEBUG(comment));
 
@@ -2601,6 +2603,7 @@ add_executable_vm_area_helper(app_pc start, app_pc end, uint vm_flags, uint frag
         print_contig_vm_areas(executable_areas, start, end, GLOBAL,
                               "new executable vm area: ");
     });
+    YPHPRINT("End");
 }
 
 static coarse_info_t *
@@ -3651,7 +3654,7 @@ add_dynamo_vm_area(app_pc start, app_pc end, uint prot, bool unmod_image
     if (!dynamo_areas_uptodate)
         update_dynamo_vm_areas(true);
     ASSERT(!vm_area_overlap(dynamo_areas, start, end));
-    YPHPRINT("->add_vm_area() && ->update_all_memory_areas()");
+    YPHPRINT("->add_vm_area(dynamo_areas, ...) && ->update_all_memory_areas()");
     add_vm_area(dynamo_areas, start, end, vm_flags, 0 /* frag_flags */,
                 NULL _IF_DEBUG(comment));
     update_all_memory_areas(start, end, prot,

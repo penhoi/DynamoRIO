@@ -231,7 +231,7 @@ add_all_memory_area(app_pc start, app_pc end, uint prot, int type, bool shareabl
     info->type = type;
     info->shareable = shareable;
     info->vdso = (start == vsyscall_page_start);
-    YPHPRINT("->vmvector_add()");
+    YPHPRINT("->vmvector_add(all_memory_areas, ...)");
     vmvector_add(all_memory_areas, start, end, (void *)info);
     YPHPRINT("End");
 }
@@ -239,6 +239,7 @@ add_all_memory_area(app_pc start, app_pc end, uint prot, int type, bool shareabl
 void
 memcache_update(app_pc start, app_pc end_in, uint prot, int type)
 {
+    YPHPRINT("Begin:->add_all_memory_area()");
     allmem_info_t *info;
     app_pc end = (app_pc) ALIGN_FORWARD(end_in, PAGE_SIZE);
     bool removed;
@@ -323,6 +324,7 @@ memcache_update(app_pc start, app_pc end_in, uint prot, int type)
         "update_all_memory_areas "PFX"-"PFX" %d %d: post:\n",
         start, end_in, prot, type);
     DOLOG(5, LOG_VMAREAS, memcache_print(GLOBAL, ""););
+    YPHPRINT("End");
 }
 
 void
@@ -584,6 +586,7 @@ memcache_handle_app_brk(byte *lowest_brk/*if known*/, byte *old_brk, byte *new_b
 void
 memcache_update_all_from_os(void)
 {
+    YPHPRINT("Begin");
     memquery_iter_t iter;
     LOG(GLOBAL, LOG_SYSCALLS, 1, "updating memcache from maps file\n");
     memquery_iterator_start(&iter, NULL, true/*may alloc*/);
@@ -593,4 +596,5 @@ memcache_update_all_from_os(void)
     os_walk_address_space(&iter, false);
     memcache_unlock();
     memquery_iterator_stop(&iter);
+    YPHPRINT("End");
 }
