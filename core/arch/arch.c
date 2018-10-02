@@ -321,9 +321,11 @@ shared_gencode_emit(generated_code_t *gencode _IF_X86_64(bool x86_mode))
     gencode->gen_end_pc = gencode->commit_end_pc;
     pc = check_size_and_cache_line(isa_mode, gencode, pc);
     gencode->fcache_enter = pc;
+    YPHPRINT("->emit_fcache_enter_shared() starting @pc = %p", pc);
     pc = emit_fcache_enter_shared(GLOBAL_DCONTEXT, gencode, pc);
     pc = check_size_and_cache_line(isa_mode, gencode, pc);
     gencode->fcache_return = pc;
+    YPHPRINT("->emit_fcache_return_shared() starting @pc = %p", pc);
     pc = emit_fcache_return_shared(GLOBAL_DCONTEXT, gencode, pc);
     if (DYNAMO_OPTION(coarse_units)) {
         pc = check_size_and_cache_line(isa_mode, gencode, pc);
@@ -410,6 +412,7 @@ shared_gencode_emit(generated_code_t *gencode _IF_X86_64(bool x86_mode))
     /* i#821/PR 284029: for now we assume there are no syscalls in x86 code */
     if (IF_X64_ELSE(!x86_mode, true)) {
         /* PR 244737: syscall routines are all shared */
+        YPHPRINT("->emit_syscall_routines() starting @pc = %p", pc);
         pc = emit_syscall_routines(GLOBAL_DCONTEXT, gencode, pc, true/*thread-shared*/);
     }
 #elif defined(UNIX) && defined(HAVE_TLS)
@@ -418,6 +421,7 @@ shared_gencode_emit(generated_code_t *gencode _IF_X86_64(bool x86_mode))
     ASSERT(gencode->do_syscall == NULL || dynamo_initialized/*re-gen*/);
     pc = check_size_and_cache_line(isa_mode, gencode, pc);
     gencode->do_syscall = pc;
+    YPHPRINT("->emit_do_syscall() starting @pc = %p", pc);
     pc = emit_do_syscall(GLOBAL_DCONTEXT, gencode, pc, gencode->fcache_return,
                          true/*shared*/, 0, &gencode->do_syscall_offs);
 # ifdef AARCHXX
@@ -438,8 +442,7 @@ shared_gencode_emit(generated_code_t *gencode _IF_X86_64(bool x86_mode))
             fragment = empty_fragment_mark_x86(fragment);
 #endif
         /* reset exit stub should look just like a direct exit stub */
-        pc += insert_exit_stub_other_flags
-            (GLOBAL_DCONTEXT, fragment,
+        pc += insert_exit_stub_other_flags (GLOBAL_DCONTEXT, fragment,
             (linkstub_t *) get_reset_linkstub(), pc, LINK_DIRECT);
     }
 
@@ -495,29 +498,33 @@ shared_gencode_init(IF_X86_64_ELSE(gencode_mode_t gencode_mode, void))
     bool x86_to_x64_mode = false;
 #endif
 
+    YPHPRINT("Begin: generated_code_t *gencode = heap_mmap_reserve(0x%x, 0x%x, ..)", GENCODE_RESERVE_SIZE, GENCODE_COMMIT_SIZE);
     gencode = heap_mmap_reserve(GENCODE_RESERVE_SIZE, GENCODE_COMMIT_SIZE,
-                                VMM_SPECIAL_MMAP);
+            VMM_SPECIAL_MMAP);
     /* we would return gencode and let caller assign, but emit routines
      * that this routine calls query the shared vars so we set here
      */
 #if defined(X86) && defined(X64)
     switch (gencode_mode) {
-    case GENCODE_X64:
-        shared_code = gencode;
-        break;
-    case GENCODE_X86:
-        /* we do not call set_x86_mode() b/c much of the gencode may be
-         * 64-bit: it's up the gencode to mark each instr that's 32-bit.
-         */
-        shared_code_x86 = gencode;
-        x86_mode = true;
-        break;
-    case GENCODE_X86_TO_X64:
-        shared_code_x86_to_x64 = gencode;
-        x86_to_x64_mode = true;
-        break;
-    default:
-        ASSERT_NOT_REACHED();
+        case GENCODE_X64:
+            shared_code = gencode;
+
+            break;
+        case GENCODE_X86:
+            /* we do not call set_x86_mode() b/c much of the gencode may be
+             * 64-bit: it's up the gencode to mark each instr that's 32-bit.
+             */
+            shared_code_x86 = gencode;
+            x86_mode = true;
+
+            break;
+        case GENCODE_X86_TO_X64:
+            shared_code_x86_to_x64 = gencode;
+            x86_to_x64_mode = true;
+
+            break;
+        default:
+            ASSERT_NOT_REACHED();
     }
 #else
     shared_code = gencode;
@@ -527,10 +534,11 @@ shared_gencode_init(IF_X86_64_ELSE(gencode_mode_t gencode_mode, void))
     gencode->thread_shared = true;
     IF_X86_64(gencode->gencode_mode = gencode_mode);
     /* Generated code immediately follows struct */
+    YPHPRINT("Generated code immediately follows struct generated_code_t");
     gencode->gen_start_pc = ((byte *)gencode) + sizeof(*gencode);
     gencode->commit_end_pc = ((byte *)gencode) + GENCODE_COMMIT_SIZE;
     for (branch_type = IBL_BRANCH_TYPE_START;
-         branch_type < IBL_BRANCH_TYPE_END; branch_type++) {
+            branch_type < IBL_BRANCH_TYPE_END; branch_type++) {
         gencode->trace_ibl[branch_type].initialized = false;
         gencode->bb_ibl[branch_type].initialized = false;
         gencode->coarse_ibl[branch_type].initialized = false;
@@ -549,31 +557,29 @@ shared_gencode_init(IF_X86_64_ELSE(gencode_mode_t gencode_mode, void))
     gencode->shared_syscall_code.x86_to_x64_mode = x86_to_x64_mode;
 #endif
 
+    YPHPRINT("->shared_gencode_emit()");
     shared_gencode_emit(gencode _IF_X86_64(x86_mode));
     release_final_page(gencode);
 
     DOLOG(3, LOG_EMIT, {
-        YPHPRINT("->dump_emitted_routines()");
-        dump_emitted_routines(GLOBAL_DCONTEXT, GLOBAL,
-                              IF_X86_64_ELSE(x86_mode ? "thread-shared x86" :
-                                             "thread-shared", "thread-shared"),
-                              gencode, gencode->gen_end_pc);
-    });
+            YPHPRINT("->dump_emitted_routines()");
+            dump_emitted_routines(GLOBAL_DCONTEXT, GLOBAL,
+                    IF_X86_64_ELSE(x86_mode ? "thread-shared x86" : "thread-shared", "thread-shared"),
+                    gencode, gencode->gen_end_pc);
+            });
 #ifdef INTERNAL
     if (INTERNAL_OPTION(gendump)) {
         dump_emitted_routines_to_file(GLOBAL_DCONTEXT, "gencode-shared",
-                                      IF_X86_64_ELSE(x86_mode ? "thread-shared x86" :
-                                                     "thread-shared", "thread-shared"),
-                                      gencode, gencode->gen_end_pc);
+                IF_X86_64_ELSE(x86_mode ? "thread-shared x86" : "thread-shared", "thread-shared"),
+                gencode, gencode->gen_end_pc);
     }
 #endif
 #ifdef WINDOWS_PC_SAMPLE
     if (dynamo_options.profile_pcs &&
-        dynamo_options.prof_pcs_gencode >= 2 &&
-        dynamo_options.prof_pcs_gencode <= 32) {
-        gencode->profile =
-            create_profile(gencode->gen_start_pc, gencode->gen_end_pc,
-                           dynamo_options.prof_pcs_gencode, NULL);
+            dynamo_options.prof_pcs_gencode >= 2 &&
+            dynamo_options.prof_pcs_gencode <= 32) {
+        gencode->profile = create_profile(gencode->gen_start_pc, gencode->gen_end_pc,
+                dynamo_options.prof_pcs_gencode, NULL);
         start_profile(gencode->profile);
     } else
         gencode->profile = NULL;
@@ -581,6 +587,8 @@ shared_gencode_init(IF_X86_64_ELSE(gencode_mode_t gencode_mode, void))
 
     gencode->writable = true;
     protect_generated_code(gencode, READONLY);
+
+    YPHPRINT("End");
 }
 
 #ifdef AARCHXX
@@ -660,11 +668,12 @@ far_ibl_set_targets(ibl_code_t src_ibl[], ibl_code_t tgt_ibl[])
 void
 arch_init(void)
 {
+    YPHPRINT("Begin");
     ASSERT(sizeof(opnd_t) == EXPECTED_SIZEOF_OPND);
     IF_X86(ASSERT(CHECK_TRUNCATE_TYPE_byte(OPSZ_LAST)));
     /* ensure our flag sharing is done properly */
     ASSERT((uint)LINK_FINAL_INSTR_SHARED_FLAG <
-           (uint)INSTR_FIRST_NON_LINK_SHARED_FLAG);
+            (uint)INSTR_FIRST_NON_LINK_SHARED_FLAG);
     ASSERT_TRUNCATE(byte, byte, OPSZ_LAST_ENUM);
     ASSERT(DR_ISA_ARM_A32 + 1 == DR_ISA_ARM_THUMB); /* ibl relies on this */
 
@@ -696,23 +705,23 @@ arch_init(void)
     ASSERT(dr_reg_stolen >= DR_REG_STOLEN_MIN && dr_reg_stolen <= DR_REG_STOLEN_MAX)
 #endif
 
-    /* Ensure we have no unexpected padding inside structs that include
-     * priv_mcontext_t (app_state_at_intercept_t and dcontext_t) */
-    IF_X86(ASSERT(offsetof(priv_mcontext_t, pc) + sizeof(byte*) + PRE_XMM_PADDING ==
-                  offsetof(priv_mcontext_t, ymm)));
+        /* Ensure we have no unexpected padding inside structs that include
+         * priv_mcontext_t (app_state_at_intercept_t and dcontext_t) */
+        IF_X86(ASSERT(offsetof(priv_mcontext_t, pc) + sizeof(byte*) + PRE_XMM_PADDING ==
+                    offsetof(priv_mcontext_t, ymm)));
     ASSERT(offsetof(app_state_at_intercept_t, mc) ==
-           offsetof(app_state_at_intercept_t, start_pc) + sizeof(void*));
+            offsetof(app_state_at_intercept_t, start_pc) + sizeof(void*));
     /* Try to catch errors in x86.asm offsets for dcontext_t */
     ASSERT(sizeof(unprotected_context_t) == sizeof(priv_mcontext_t) +
-           IF_WINDOWS_ELSE(IF_X64_ELSE(8, 4), 8) +
-           IF_CLIENT_INTERFACE_ELSE(5 * sizeof(reg_t), 0));
+            IF_WINDOWS_ELSE(IF_X64_ELSE(8, 4), 8) +
+            IF_CLIENT_INTERFACE_ELSE(5 * sizeof(reg_t), 0));
 
     interp_init();
 
 #ifdef CHECK_RETURNS_SSE2
     if (proc_has_feature(FEATURE_SSE2)) {
         FATAL_USAGE_ERROR(CHECK_RETURNS_SSE2_REQUIRES_SSE2, 2,
-                          get_application_name(), get_application_pid());
+                get_application_name(), get_application_pid());
     }
 #endif
 
@@ -725,6 +734,7 @@ arch_init(void)
          */
         ASSERT(GENCODE_COMMIT_SIZE < GENCODE_RESERVE_SIZE);
 
+        YPHPRINT("->shared_gencode_init(IF_X86_64(GENCODE_X64))");
         shared_gencode_init(IF_X86_64(GENCODE_X64));
 #if defined(X86) && defined(X64)
         /* FIXME i#49: usually LOL64 has only 32-bit code (kernel has 32-bit syscall
@@ -734,34 +744,41 @@ arch_init(void)
         if (mixed_mode_enabled()) {
             generated_code_t *shared_code_opposite_mode;
 
+            YPHPRINT("->shared_gencode_init(IF_X64(GENCODE_X86))");
             shared_gencode_init(IF_X64(GENCODE_X86));
 
             if (DYNAMO_OPTION(x86_to_x64)) {
+                YPHPRINT("->shared_gencode_init(IF_X64(GENCODE_X86_TO_X64))");
                 shared_gencode_init(IF_X64(GENCODE_X86_TO_X64));
                 shared_code_opposite_mode = shared_code_x86_to_x64;
-            } else
+            }
+            else {
                 shared_code_opposite_mode = shared_code_x86;
+            }
 
             /* Now link the far_ibl for each type to the corresponding regular
              * ibl of the opposite mode.
              */
             far_ibl_set_targets(shared_code->trace_ibl,
-                                shared_code_opposite_mode->trace_ibl);
+                    shared_code_opposite_mode->trace_ibl);
             far_ibl_set_targets(shared_code->bb_ibl,
-                                shared_code_opposite_mode->bb_ibl);
+                    shared_code_opposite_mode->bb_ibl);
             far_ibl_set_targets(shared_code->coarse_ibl,
-                                shared_code_opposite_mode->coarse_ibl);
+                    shared_code_opposite_mode->coarse_ibl);
 
             far_ibl_set_targets(shared_code_opposite_mode->trace_ibl,
-                                shared_code->trace_ibl);
+                    shared_code->trace_ibl);
             far_ibl_set_targets(shared_code_opposite_mode->bb_ibl,
-                                shared_code->bb_ibl);
+                    shared_code->bb_ibl);
             far_ibl_set_targets(shared_code_opposite_mode->coarse_ibl,
-                                shared_code->coarse_ibl);
+                    shared_code->coarse_ibl);
         }
 #endif
     }
+    YPHPRINT("->mangle_init()");
     mangle_init();
+
+    YPHPRINT("End");
 }
 
 #ifdef WINDOWS_PC_SAMPLE
@@ -1011,6 +1028,7 @@ static byte *
 emit_syscall_routines(dcontext_t *dcontext, generated_code_t *code, byte *pc,
                       bool thread_shared)
 {
+    YPHPRINT("Begin:");
     /* FIXME i#1551: pass in or store mode in generated_code_t */
     dr_isa_mode_t isa_mode = dr_get_isa_mode(dcontext);
 #ifdef HASHTABLE_STATISTICS
@@ -1120,6 +1138,7 @@ emit_syscall_routines(dcontext_t *dcontext, generated_code_t *code, byte *pc,
 # endif
 #endif /* UNIX */
 
+    YPHPRINT("End");
     return pc;
 }
 

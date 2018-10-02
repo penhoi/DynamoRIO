@@ -4581,6 +4581,7 @@ emit_do_syscall_common(dcontext_t *dcontext, generated_code_t *code,
                        bool handle_clone, bool thread_shared, int interrupt,
                        instr_t *syscall_instr, uint *syscall_offs /*OUT*/)
 {
+    YPHPRINT("Begin");
     instrlist_t ilist;
     instr_t *syscall = NULL;
 #ifdef UNIX
@@ -4594,17 +4595,19 @@ emit_do_syscall_common(dcontext_t *dcontext, generated_code_t *code,
         interrupt = 0x80;
     }
 #endif
-    if (syscall_instr != NULL)
+    if (syscall_instr != NULL) {
         syscall = syscall_instr;
+    }
     else {
         if (interrupt != 0) {
 #ifdef X86
-            syscall = INSTR_CREATE_int(dcontext,
-                                       opnd_create_immed_int((char)interrupt, OPSZ_1));
+            syscall = INSTR_CREATE_int(dcontext, opnd_create_immed_int((char)interrupt, OPSZ_1));
 #endif
             IF_ARM(ASSERT_NOT_REACHED());
-        } else
+        }
+        else {
             syscall = create_syscall_instr(dcontext);
+        }
     }
 
     /* i#821/PR 284029: for now we assume there are no syscalls in x86 code.
@@ -4675,8 +4678,7 @@ emit_do_syscall_common(dcontext_t *dcontext, generated_code_t *code,
     if (thread_shared)
         APP(&ilist, instr_create_save_to_tls(dcontext, SCRATCH_REG0, TLS_REG0_SLOT));
     else
-        APP(&ilist, instr_create_save_to_dcontext(dcontext, SCRATCH_REG0,
-                                                  SCRATCH_REG0_OFFS));
+        APP(&ilist, instr_create_save_to_dcontext(dcontext, SCRATCH_REG0, SCRATCH_REG0_OFFS));
 
 #ifdef AARCH64
     /* Save X1 as this is used for the indirect branch in the exit stub. */
@@ -4710,6 +4712,7 @@ emit_do_syscall_common(dcontext_t *dcontext, generated_code_t *code,
     /* free the instrlist_t elements */
     instrlist_clear(dcontext, &ilist);
 
+    YPHPRINT("End: pc = 0x%p", pc);
     return pc;
 }
 
@@ -4826,6 +4829,7 @@ emit_do_clone_syscall(dcontext_t *dcontext, generated_code_t *code, byte *pc,
                       byte *fcache_return_pc, bool thread_shared,
                       uint *syscall_offs /*OUT*/)
 {
+    YPHPRINT("->emit_do_syscall_common(...fcache_return_pc...)");
     return emit_do_syscall_common(dcontext, code, pc, fcache_return_pc,
                                   true, thread_shared, false, NULL, syscall_offs);
 }
@@ -4848,6 +4852,7 @@ emit_do_syscall(dcontext_t *dcontext, generated_code_t *code, byte *pc,
                 byte *fcache_return_pc, bool thread_shared, int interrupt,
                 uint *syscall_offs /*OUT*/)
 {
+    YPHPRINT("->emit_do_syscall_common(...fcache_return_pc...)");
     pc = emit_do_syscall_common(dcontext, code, pc, fcache_return_pc,
                                 false, thread_shared, interrupt, NULL, syscall_offs);
     return pc;

@@ -554,6 +554,7 @@ dynamorio_app_init(void)
          */
         loader_init();
 #endif
+        YPHPRINT("->arch_init()");
         arch_init();
         synch_init();
 

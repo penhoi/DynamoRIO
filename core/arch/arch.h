@@ -928,7 +928,7 @@ typedef struct _generated_code_t {
      * ((char *)TPC_ptr) + sizeof(generated_code_t)
      */
     byte *gen_start_pc; /* start of generated code */
-    byte *gen_end_pc; /* end of generated code */
+    byte *gen_end_pc;   /* end of generated code */
     byte *commit_end_pc; /* end of committed region */
     /* generated code follows, ends at gen_end_pc < commit_end_pc */
 } generated_code_t;
