@@ -5905,6 +5905,7 @@ area_contains_frag_pc(vm_area_t *area, fragment_t *f)
 static void
 prepend_entry_to_fraglist(vm_area_t *area, fragment_t *entry)
 {
+    YPHPRINT("Begin: adds entry to front of area's frags list");
     /* Can't assert area_contains_frag_pc() because vm_area_unlink_fragments
      * moves all also entries onto the area fraglist that's being flushed.
      */
@@ -5919,9 +5920,13 @@ prepend_entry_to_fraglist(vm_area_t *area, fragment_t *entry)
     if (area->custom.frags != NULL) {
         FRAG_PREV_ASSIGN(entry, FRAG_PREV(area->custom.frags));
         FRAG_PREV_ASSIGN(area->custom.frags, entry);
-    } else
+    }
+    else {
         FRAG_PREV_ASSIGN(entry, entry);
+    }
     area->custom.frags = entry;
+
+    YPHPRINT("End");
 }
 
 /* adds a multi_entry_t to the list of fragments for area.
@@ -5932,6 +5937,7 @@ static fragment_t *
 prepend_fraglist(dcontext_t *dcontext, vm_area_t *area, app_pc entry_pc,
                  app_pc tag, fragment_t *prev)
 {
+    YPHPRINT("Begin: allocate a multi_entry_t and add it to the list of fragments for area");
     multi_entry_t *e = (multi_entry_t *)
         nonpersistent_heap_alloc(dcontext, sizeof(multi_entry_t)
                                  HEAPACCT(ACCT_VMAREA_MULTI));
@@ -5950,6 +5956,7 @@ prepend_fraglist(dcontext_t *dcontext, vm_area_t *area, app_pc entry_pc,
     DOLOG(7, LOG_VMAREAS, {
         print_fraglist(dcontext, area, "after prepend_fraglist, ");
     });
+    YPHPRINT("End");
     return entry;
 }
 
@@ -8633,6 +8640,7 @@ bool
 vm_area_add_to_list(dcontext_t *dcontext, app_pc tag, void **vmlist,
                     uint list_flags, fragment_t *f, bool have_locks)
 {
+    YPHPRINT("Begin");
     thread_data_t *src_data = GET_DATA(dcontext, f->flags);
     thread_data_t *tgt_data = GET_DATA(dcontext, list_flags);
     vm_area_t *area = NULL;
@@ -8743,6 +8751,7 @@ vm_area_add_to_list(dcontext_t *dcontext, app_pc tag, void **vmlist,
                    frag_also_list_areas_unique(dcontext, tgt_data, vmlist));
     DOLOG(6, LOG_VMAREAS, { print_frag_arealist(dcontext, (fragment_t *) *vmlist); });
     DOLOG(7, LOG_VMAREAS, { print_fraglists(dcontext); });
+
  vm_area_add_to_list_done:
     if (lock) {
         if (src_data != tgt_data)
@@ -8751,6 +8760,8 @@ vm_area_add_to_list(dcontext_t *dcontext, app_pc tag, void **vmlist,
     }
     if (!have_locks)
         SHARED_FLAGS_RECURSIVE_LOCK(f->flags, release, change_linking_lock);
+
+    YPHPRINT("End");
     return success;
 }
 

@@ -914,6 +914,7 @@ emit_fragment_common(dcontext_t *dcontext, app_pc tag,
     }
 #endif
     /* add fragment to vm area lists */
+    YPHPRINT("->vm_area_add_fragment(dcontext, f, vmlist), add fragment to vm area lists");
     vm_area_add_fragment(dcontext, f, vmlist);
 
     /* store translation info, if requested */
