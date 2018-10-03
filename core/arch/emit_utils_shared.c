@@ -4581,7 +4581,7 @@ emit_do_syscall_common(dcontext_t *dcontext, generated_code_t *code,
                        bool handle_clone, bool thread_shared, int interrupt,
                        instr_t *syscall_instr, uint *syscall_offs /*OUT*/)
 {
-    YPHPRINT("Begin");
+    YPHPRINT("Begin: starting pc = 0x%p", pc);
     instrlist_t ilist;
     instr_t *syscall = NULL;
 #ifdef UNIX
@@ -4712,7 +4712,7 @@ emit_do_syscall_common(dcontext_t *dcontext, generated_code_t *code,
     /* free the instrlist_t elements */
     instrlist_clear(dcontext, &ilist);
 
-    YPHPRINT("End: pc = 0x%p", pc);
+    YPHPRINT("End: ending pc = 0x%p", pc);
     return pc;
 }
 

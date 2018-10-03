@@ -1112,22 +1112,27 @@ emit_syscall_routines(dcontext_t *dcontext, generated_code_t *code, byte *pc,
 #else /* UNIX */
     pc = check_size_and_cache_line(isa_mode, code, pc);
     code->do_syscall = pc;
+    YPHPRINT("->emit_do_syscall(..., 0, ...)");
     pc = emit_do_syscall(dcontext, code, pc, code->fcache_return, thread_shared,
                          0, &code->do_syscall_offs);
     pc = check_size_and_cache_line(isa_mode, code, pc);
     code->do_int_syscall = pc;
+    YPHPRINT("->emit_do_syscall(..., 0x80, ...)");
     pc = emit_do_syscall(dcontext, code, pc, code->fcache_return, thread_shared,
                          0x80/*force int*/, &code->do_int_syscall_offs);
     pc = check_size_and_cache_line(isa_mode, code, pc);
     code->do_int81_syscall = pc;
+    YPHPRINT("->emit_do_syscall(..., 0x81, ...)");
     pc = emit_do_syscall(dcontext, code, pc, code->fcache_return, thread_shared,
                          0x81/*force int*/, &code->do_int81_syscall_offs);
     pc = check_size_and_cache_line(isa_mode, code, pc);
     code->do_int82_syscall = pc;
+    YPHPRINT("->emit_do_syscall(..., 0x82, ...)");
     pc = emit_do_syscall(dcontext, code, pc, code->fcache_return, thread_shared,
                          0x82/*force int*/, &code->do_int82_syscall_offs);
     pc = check_size_and_cache_line(isa_mode, code, pc);
     code->do_clone_syscall = pc;
+    YPHPRINT("->emit_do_clone_syscall(...)");
     pc = emit_do_clone_syscall(dcontext, code, pc, code->fcache_return, thread_shared,
                                &code->do_clone_syscall_offs);
 # ifdef VMX86_SERVER
@@ -3158,6 +3163,7 @@ check_syscall_method(dcontext_t *dcontext, instr_t *instr)
             new_method != get_syscall_method()) {
             set_syscall_method(new_method);
             /* update the places we have emitted syscalls: do_*syscall */
+            YPHPRINT("update the places we have emitted syscalls: do_*syscall");
             update_syscalls(dcontext);
         }
     }
