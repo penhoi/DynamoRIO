@@ -1577,6 +1577,7 @@ vm_areas_reset_init(void)
 void
 dynamo_vm_areas_init()
 {
+    YPHPRINT("Just allocate memory for vm-vector dynamo_areas");
     VMVECTOR_ALLOC_VECTOR(dynamo_areas, GLOBAL_DCONTEXT, VECTOR_SHARED,
                           dynamo_areas);
 }

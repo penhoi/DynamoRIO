@@ -2511,7 +2511,7 @@ emit_fcache_return(dcontext_t *dcontext, generated_code_t *code, byte *pc)
 byte *
 emit_fcache_enter_shared(dcontext_t *dcontext, generated_code_t *code, byte *pc)
 {
-    YPHPRINT("Begin");
+    YPHPRINT("Begin:->emit_fcache_enter_common()");
     return emit_fcache_enter_common(dcontext, code, pc,
                                     false/*through xdi*/, true/*shared*/);
     YPHPRINT("End");

@@ -371,7 +371,7 @@ get_dr_stats(void)
 DYNAMORIO_EXPORT int
 dynamorio_app_init(void)
 {
-    YPHPRINT("Begin");
+    YPHPRINT("Begin: its counterpart is dynamo_shared_exit");
     int size;
 
     if (!dynamo_initialized /* we do enter if nullcalls is on */) {
@@ -401,11 +401,14 @@ dynamorio_app_init(void)
 # endif
             /* important to remove it, don't want to propagate to forked children, etc. */
             /* i#909: unsetenv is unsafe as it messes up auxv access, so we disable */
+            YPHPRINT("->disable_env(DYNAMORIO_VAR_EXECVE)");
             disable_env(DYNAMORIO_VAR_EXECVE);
             /* check that it's gone: we've had problems with unsetenv */
             ASSERT(getenv(DYNAMORIO_VAR_EXECVE) == NULL);
-        } else
+        }
+        else {
             post_execve = false;
+        }
 #endif
 
         /* default non-zero dynamo settings (options structure is
@@ -419,13 +422,14 @@ dynamorio_app_init(void)
 # endif
         statistics_pre_init();
 #endif
-
+        YPHPRINT("->config_init(), ->options_init()");
         config_init();
         options_init();
 #ifdef WINDOWS
         syscalls_init_options_read(); /* must be called after options_init
                                        * but before init_syscall_trampolines */
 #endif
+        YPHPRINT("->utils_init(), ->data_section_init()");
         utils_init();
         data_section_init();
 
@@ -479,6 +483,7 @@ dynamorio_app_init(void)
 #endif
 
         /* initialize components (CAUTION: order is important here) */
+        YPHPRINT("->vmm_heap_init()");
         vmm_heap_init(); /* must be called even if not using vmm heap */
 #ifdef CLIENT_INTERFACE
         /* PR 200207: load the client lib before callback_interception_init
@@ -487,7 +492,10 @@ dynamorio_app_init(void)
          */
         instrument_load_client_libs();
 #endif
+        YPHPRINT("->heap_init()");
         heap_init();
+
+        YPHPRINT("dynamo_heap_initialized = true");
         dynamo_heap_initialized = true;
 
         /* The process start event should be done after os_init() but before
@@ -515,9 +523,11 @@ dynamorio_app_init(void)
 
         YPHPRINT("->dynamo_vm_areas_init()");
         dynamo_vm_areas_init();
+        YPHPRINT("->decode_init(), ->proc_init(), modules_init()");
         decode_init();
         proc_init();
         modules_init(); /* before vm_areas_init() */
+        YPHPRINT("->os_init(), ->config_heap_init()");
         os_init();
         config_heap_init(); /* after heap_init */
 
@@ -554,7 +564,7 @@ dynamorio_app_init(void)
          */
         loader_init();
 #endif
-        YPHPRINT("->arch_init()");
+        YPHPRINT("->arch_init(), ->synch_init()");
         arch_init();
         synch_init();
 
@@ -562,7 +572,7 @@ dynamorio_app_init(void)
         kstat_init();
 #endif
         monitor_init();
-        YPHPRINT("->fcache_init()");
+        YPHPRINT("->fcache_init(), ->link_init(), ->fragment_init()");
         fcache_init();
         link_init();
         fragment_init();
@@ -604,8 +614,7 @@ dynamorio_app_init(void)
          * issue.
          */
         size = HASHTABLE_SIZE(ALL_THREADS_HASH_BITS) * sizeof(thread_record_t*);
-        all_threads =
-            (thread_record_t**) global_heap_alloc(size HEAPACCT(ACCT_THREAD_MGT));
+        all_threads = (thread_record_t**) global_heap_alloc(size HEAPACCT(ACCT_THREAD_MGT));
         memset(all_threads, 0, size);
         if (!INTERNAL_OPTION(nop_initial_bblock)
             IF_WINDOWS(|| !check_sole_thread())) /* some other thread is already here! */
@@ -646,7 +655,8 @@ dynamorio_app_init(void)
             /* relies on is_in_dynamo_dll() which needs vm_areas_init */
             rct_init();
 #endif
-        } else {
+        }
+        else {
             /* This is needed to handle exceptions in thin_client mode, mostly
              * internal ones, but can be app ones too. */
             YPHPRINT("->find_dynamo_library_vm_areas()");
@@ -658,6 +668,7 @@ dynamorio_app_init(void)
 #ifdef ANNOTATIONS
         annotation_init();
 #endif
+        YPHPRINT("->jitopt_init()");
         jitopt_init();
 
         /* New client threads rely on dr_app_started being initialized, so do
@@ -674,6 +685,7 @@ dynamorio_app_init(void)
          *       report; better document that client libraries shouldn't have
          *       DllMain.
          */
+        YPHPRINT("->instrument_init()");
         instrument_init();
         /* To give clients a chance to process pcaches as we load them, we
          * delay the loading until we've initialized the clients.
@@ -958,6 +970,7 @@ int
 dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
                    _IF_WINDOWS(bool detach_stacked_callbacks))
 {
+    YPHPRINT("Begin: this is Dr's workhorse exit routine, shared between app_exit and detach");
     DEBUG_DECLARE(uint endtime);
     /* set this now, could already be set */
     dynamo_exited = true;
@@ -998,10 +1011,12 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
     if (!DYNAMO_OPTION(thin_client))
         rct_exit();
 #endif
+    YPHPRINT("->fragment_exit()");
     fragment_exit();
 #ifdef ANNOTATIONS
     annotation_exit();
 #endif
+    YPHPRINT("->jitopt_exit()");
     jitopt_exit();
 #ifdef CLIENT_INTERFACE
     /* We tell the client as soon as possible in case it wants to use services from other
@@ -1009,6 +1024,7 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
      * fragment_deleted() callbacks (xref PR 228156). FIXME - might be issues with the
      * client trying to use api routines that depend on fragment state.
      */
+    YPHPRINT("->instrument_exit()");
     instrument_exit();
 # ifdef CLIENT_SIDELINE
     /* We only need do a second synch-all if there are sideline client threads. */
@@ -1032,8 +1048,11 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
     destroy_event(dr_app_started);
 
     /* we want dcontext around for loader_exit() */
-    if (get_thread_private_dcontext() != NULL)
+    if (get_thread_private_dcontext() != NULL) {
+        YPHPRINT("->loader_thread_exit(.)");
         loader_thread_exit(get_thread_private_dcontext());
+    }
+    YPHPRINT("loader_exit()");
     loader_exit();
 
     if (toexit != NULL) {
@@ -1050,6 +1069,7 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
          * on the current thread, which must be toexit.
          */
         ASSERT(toexit->id == get_thread_id());
+        YPHPRINT("->dynamo_thread_exit()");
         dynamo_thread_exit();
 #endif
     }
@@ -1064,11 +1084,13 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
              * been at one time
              */
             /* exit this thread now */
+            YPHPRINT("->dynamo_thread_exit(), exit this thread now ");
             dynamo_thread_exit();
         }
     }
     /* now that the final thread is exited, free the all_threads memory */
     mutex_lock(&all_threads_lock);
+    YPHPRINT("->global_heap_free(..)");
     global_heap_free(all_threads,
                      HASHTABLE_SIZE(ALL_THREADS_HASH_BITS) * sizeof(thread_record_t*)
                      HEAPACCT(ACCT_THREAD_MGT));
@@ -1088,9 +1110,11 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
         callback_interception_exit();
     }
 #endif
+    YPHPRINT("->link_exit(), ->fcache_exit(), ->monitor_exit()");
     link_exit();
     fcache_exit();
     monitor_exit();
+    YPHPRINT("->synch_exit(), arch_exit()");
     synch_exit();
     arch_exit(IF_WINDOWS(detach_stacked_callbacks));
 #ifdef CALL_PROFILE
@@ -1102,6 +1126,7 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
     os_fast_exit();
     os_slow_exit();
     native_exec_exit(); /* before vm_areas_exit for using dynamo_areas */
+    YPHPRINT("->vm_areas_exit()");
     vm_areas_exit();
     perscache_slow_exit(); /* fast called in dynamo_process_exit_with_thread_info() */
     modules_exit(); /* after aslr_exit() from os_slow_exit(),
@@ -1117,6 +1142,7 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
     exception_stack = NULL;
 #endif
     config_heap_exit();
+    YPHPRINT("->heap_exit(), ->vmm_heap_exit()");
     heap_exit();
     vmm_heap_exit();
     diagnost_exit();
@@ -1126,6 +1152,7 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
      * checking locks in debug build
      */
     options_exit();
+    YPHPRINT("->options_exit(), ->utils_exit(), ->config_exit()");
     utils_exit();
     config_exit();
 
@@ -1165,6 +1192,8 @@ dynamo_shared_exit(thread_record_t *toexit /* must ==cur thread for Linux */
 #endif /* DEBUG */
 
     dynamo_initialized = false;
+
+    YPHPRINT("End");
     return SUCCESS;
 }
 
@@ -1258,6 +1287,7 @@ exit_synch_state(void)
 static int
 dynamo_process_exit_cleanup(void)
 {
+    YPHPRINT("Begin");
     /* CAUTION: this should only be invoked after all app threads have stopped */
     if (!dynamo_exited && !INTERNAL_OPTION(nullcalls)) {
         dcontext_t *dcontext;
@@ -1333,9 +1363,12 @@ dynamo_process_exit_cleanup(void)
         unhook_vsyscall();
 #endif /* UNIX */
 
+        YPHPRINT("End: ->dynamo_shared_exit(...)");
         return dynamo_shared_exit(NULL /* not detaching */
                                   _IF_WINDOWS(false /* not detaching */));
     }
+
+    YPHPRINT("End");
     return SUCCESS;
 }
 #endif /* DEBUG */
@@ -1386,9 +1419,9 @@ dynamo_process_exit(void)
              * interface is used, we are about to be gone from the process
              * address space, so we clean up now
              */
-            LOG(GLOBAL, LOG_TOP, 1,
-                "\ndynamo_process_exit from thread "TIDFMT" -- cleaning up dynamo\n",
+            LOG(GLOBAL, LOG_TOP, 1, "\ndynamo_process_exit from thread "TIDFMT" -- cleaning up dynamo\n",
                 get_thread_id());
+            YPHPRINT("DEBUG: ->dynamo_process_exit_cleanup()");
             dynamo_process_exit_cleanup();
         }
     }
@@ -1396,6 +1429,8 @@ dynamo_process_exit(void)
     return SUCCESS;
 
 #else
+    YPHPRINT("!DEBUG: do exit");
+
     if (dynamo_exited)
         return SUCCESS;
 
@@ -2264,7 +2299,9 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
 
     YPHPRINT("->os_tls_init()");
     os_tls_init();
+    YPHPRINT("->create_new_dynamo_context(true/*initial*/, dstack_in, mc), create drcontext");
     dcontext = create_new_dynamo_context(true/*initial*/, dstack_in, mc);
+    YPHPRINT("->initialize_dynamo_context(), ->set_thread_private_dcontext()");
     initialize_dynamo_context(dcontext);
     set_thread_private_dcontext(dcontext);
     /* sanity check */
@@ -2274,8 +2311,10 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
     dcontext->local_state = get_local_state();
 
     /* set initial mcontext, if known */
-    if (mc != NULL)
+    if (mc != NULL) {
+        YPHPRINT("->get_mcontext(), set initial mcontext if known");
         *get_mcontext(dcontext) = *mc;
+    }
 
     /* For hotp_only, the thread should run native, not under dr.  However,
      * the core should still get control of the thread at hook points to track
@@ -2293,6 +2332,7 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
      * is held.  CHECK: is this always correct?  thread_lookup does have an assert
      * to try and enforce but cannot tell who has the lock.
      */
+    YPHPRINT("->add_thread()");
     add_thread(IF_WINDOWS_ELSE(NT_CURRENT_THREAD, get_process_id()), get_thread_id(),
                under_dynamo_control, dcontext);
 #ifdef UNIX /* i#2600: Not easy on Windows: we rely on init_apc_go_native there. */
@@ -2342,11 +2382,13 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
 #ifdef DEADLOCK_AVOIDANCE
     locks_thread_init(dcontext);
 #endif
+    YPHPRINT("->heap_thread_init(dcontext)");
     heap_thread_init(dcontext);
     DOSTATS({ stats_thread_init(dcontext); });
 #ifdef KSTATS
     kstat_thread_init(dcontext);
 #endif
+    YPHPRINT("->os_thread_init(), ->arch_thread_init(), ->synch_thread_init()");
     os_thread_init(dcontext);
     arch_thread_init(dcontext);
     synch_thread_init(dcontext);
@@ -2356,8 +2398,8 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
         vm_areas_thread_init(dcontext);
     }
 
+    YPHPRINT("->monitor_thread_init(), ->fcache_thread_init(), ->link_thread_init(), ->fragment_thread_init()");
     monitor_thread_init(dcontext);
-    YPHPRINT("->fcache_thread_init()");
     fcache_thread_init(dcontext);
     link_thread_init(dcontext);
     fragment_thread_init(dcontext);
@@ -2375,6 +2417,7 @@ dynamo_thread_init(byte *dstack_in, priv_mcontext_t *mc
     instrument_client_thread_init(dcontext, client_thread);
 #endif
 
+    YPHPRINT("->loader_thread_init(dcontext)");
     loader_thread_init(dcontext);
 
     if (!DYNAMO_OPTION(thin_client)) {
@@ -2454,6 +2497,7 @@ static int
 dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
                           IF_WINDOWS_(bool detach_stacked_callbacks) bool other_thread)
 {
+    YPHPRINT("Begin: thread-specific cleanup, terminates current thread");
     dcontext_t *dcontext_tmp;
 #ifdef WINDOWS
     dcontext_t *dcontext_next;
@@ -2467,6 +2511,7 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
         return SUCCESS;
 
     /* make sure don't get into deadlock w/ flusher */
+    YPHPRINT("->enter_threadexit(dcontext)");
     enter_threadexit(dcontext);
 
     /* synch point so thread exiting can be prevented for critical periods */
@@ -2543,20 +2588,26 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
      * we do some thread cleanup early for the final thread so we can delay
      * the rest (PR 536058)
      */
-    if (!dynamo_exited_and_cleaned)
+    if (!dynamo_exited_and_cleaned) {
+        YPHPRINT("->dynamo_thread_exit_pre_client(dc)");
         dynamo_thread_exit_pre_client(dcontext, id);
+    }
 #ifdef CLIENT_INTERFACE
     /* PR 243759: don't free client_data until after all fragment deletion events */
-    if (!DYNAMO_OPTION(thin_client))
+    if (!DYNAMO_OPTION(thin_client)) {
+        YPHPRINT("->instrument_thread_exit(dc)");
         instrument_thread_exit(dcontext);
+    }
 #endif
 
     /* i#920: we can't take segment/timer/asynch actions for other threads.
      * This must be called after dynamo_thread_exit_pre_client where
      * we called event callbacks.
      */
-    if (!other_thread)
+    if (!other_thread) {
+        YPHPRINT("->dynamo_thread_not_under_dynamo(dcontext)");
         dynamo_thread_not_under_dynamo(dcontext);
+    }
 
     /* We clean up priv libs prior to setting tls dc to NULL so we can use
      * TRY_EXCEPT when calling the priv lib entry routine
@@ -2584,13 +2635,18 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
     if (id == get_thread_id())
         set_thread_private_dcontext(NULL);
 
+    YPHPRINT("->fcache_thread_exit(), ->link_thread_exit(), ->monitor_thread_exit()");
     fcache_thread_exit(dcontext);
     link_thread_exit(dcontext);
     monitor_thread_exit(dcontext);
-    if (!DYNAMO_OPTION(thin_client))
+    if (!DYNAMO_OPTION(thin_client)) {
+        YPHPRINT("->vm_areas_thread_exit()");
         vm_areas_thread_exit(dcontext);
+    }
+    YPHPRINT("->synch_thread_exit(), ->arch_thread_exit()");
     synch_thread_exit(dcontext);
     arch_thread_exit(dcontext _IF_WINDOWS(detach_stacked_callbacks));
+    YPHPRINT("->os_thread_exit(dcontext, ...)");
     os_thread_exit(dcontext, other_thread);
     DOLOG(1, LOG_STATS, {
         dump_thread_stats(dcontext, false);
@@ -2599,6 +2655,7 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
     kstat_thread_exit(dcontext);
 #endif
     DOSTATS({ stats_thread_exit(dcontext); });
+    YPHPRINT("->heap_thread_exit()");
     heap_thread_exit(dcontext);
 #ifdef DEADLOCK_AVOIDANCE
     locks_thread_exit(dcontext);
@@ -2612,6 +2669,7 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
 #endif
 
     /* remove thread from threads hashtable */
+    YPHPRINT("->remove_thread(...), remove thread from threads hashtable");
     remove_thread(IF_WINDOWS_(NT_CURRENT_THREAD) id);
 
     dcontext_tmp = dcontext;
@@ -2638,8 +2696,10 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
     LOG(GLOBAL, LOG_STATS|LOG_THREADS, 1, "\tdynamo contexts used: %d\n",
         num_dcontext);
 #else /* UNIX */
+    YPHPRINT("->delete_dynamo_context(); delete dcontext");
     delete_dynamo_context(dcontext_tmp, !on_dstack/*do not free own stack*/);
 #endif /* UNIX */
+    YPHPRINT("->os_tls_exit(...)");
     os_tls_exit(local_state, other_thread);
 
 #ifdef SIDELINE
@@ -2658,6 +2718,7 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
          * in exiting_dynamorio)
          */
         if (!on_dstack) {
+            YPHPRINT("->EXITING_DR()");
             EXITING_DR();
             /* else, caller will clean up stack and then call EXITING_DR(),
              * probably via dynamo_thread_stack_free_and_exit(), as the stack free
@@ -2666,14 +2727,19 @@ dynamo_thread_exit_common(dcontext_t *dcontext, thread_id_t id,
         }
     }
 
+    YPHPRINT("End");
     return SUCCESS;
 }
 
 int
 dynamo_thread_exit(void)
 {
+    YPHPRINT("Begin");
     dcontext_t *dcontext = get_thread_private_dcontext();
-    return dynamo_thread_exit_common(dcontext, get_thread_id(), IF_WINDOWS_(false) false);
+    int res = dynamo_thread_exit_common(dcontext, get_thread_id(), IF_WINDOWS_(false) false);
+    YPHPRINT("End");
+
+    return res;
 }
 
 /* NOTE : you must hold thread_initexit_lock to call this function! */
@@ -2685,8 +2751,8 @@ dynamo_other_thread_exit(thread_record_t *tr _IF_WINDOWS(bool detach_stacked_cal
      */
     KSTOP_REWIND_DC(tr->dcontext, thread_measured);
     KSTART_DC(tr->dcontext, thread_measured);
-    return dynamo_thread_exit_common(tr->dcontext, tr->id,
-                                     IF_WINDOWS_(detach_stacked_callbacks) true);
+    YPHPRINT("->dynamo_thread_exit_common()");
+    return dynamo_thread_exit_common(tr->dcontext, tr->id, IF_WINDOWS_(detach_stacked_callbacks) true);
 }
 
 /* Called from another stack to finish cleaning up a thread.
@@ -2845,6 +2911,7 @@ dynamo_thread_not_under_dynamo(dcontext_t *dcontext)
     LOG(THREAD, LOG_ASYNCH, 2, "thread %d not under DR control\n",
         dcontext->owning_thread);
     dcontext->currently_stopped = true;
+    YPHPRINT("->os_thread_not_under_dynamo(dcontext)");
     os_thread_not_under_dynamo(dcontext);
 #ifdef SIDELINE
     /* FIXME: if # active threads is 0, then put sideline thread to sleep! */

@@ -711,7 +711,7 @@ HTNAME(hashtable_,NAME_KEY,_lookup)(dcontext_t *dcontext, ptr_uint_t tag,
 {
     ENTRY_TYPE e;
     ptr_uint_t ftag;
-    YPHPRINT("Lookup %p in hashtable %s", tag, htable->name);
+    // YPHPRINT("Lookup %p in hashtable %s", tag, htable->name);
     uint hindex = HASH_FUNC(tag, htable);
 #ifdef HASHTABLE_STATISTICS
     uint collision_len = 0;

@@ -1298,6 +1298,7 @@ os_fast_exit(void)
 void
 os_terminate_with_code(dcontext_t *dcontext, terminate_flags_t flags, int exit_code)
 {
+    YPHPRINT("Begin");
     /* i#1319: we support a signal via 2nd byte */
     bool use_signal = exit_code > 0x00ff;
     /* XXX: TERMINATE_THREAD not supported */
@@ -1317,6 +1318,7 @@ os_terminate_with_code(dcontext_t *dcontext, terminate_flags_t flags, int exit_c
         config_exit(); /* delete .1config file */
         exit_process_syscall(exit_code);
     }
+    YPHPRINT("End");
 }
 
 void
@@ -2587,8 +2589,11 @@ void
 os_thread_under_dynamo(dcontext_t *dcontext)
 {
     YPHPRINT("begin");
+    YPHPRINT("->os_swap_context(dcontext, false/*to dr*/, DR_STATE_GO_NATIVE)");
     os_swap_context(dcontext, false/*to dr*/, DR_STATE_GO_NATIVE);
+    YPHPRINT("->signal_swap_mask(dcontext, false/*to dr*/)");
     signal_swap_mask(dcontext, false/*to dr*/);
+    YPHPRINT("->start_itimer(dcontext)");
     start_itimer(dcontext);
     YPHPRINT("end");
 }
@@ -2596,9 +2601,14 @@ os_thread_under_dynamo(dcontext_t *dcontext)
 void
 os_thread_not_under_dynamo(dcontext_t *dcontext)
 {
+    YPHPRINT("Begin");
+    YPHPRINT("->stop_itimer(dcontext)");
     stop_itimer(dcontext);
+    YPHPRINT("->signal_swap_mask(dcontext, true/*to app*/)");
     signal_swap_mask(dcontext, true/*to app*/);
+    YPHPRINT("->os_swap_context(dcontext, true/*to app*/, DR_STATE_GO_NATIVE)");
     os_swap_context(dcontext, true/*to app*/, DR_STATE_GO_NATIVE);
+    YPHPRINT("End");
 }
 
 void
@@ -3095,6 +3105,7 @@ init_emulated_brk(app_pc exe_end)
 static byte *
 emulate_app_brk(dcontext_t *dcontext, byte *new_val)
 {
+    YPHPRINT("Begin");
     byte *old_brk = app_brk_cur;
     ASSERT(DYNAMO_OPTION(emulate_brk));
     LOG(THREAD, LOG_HEAP, 2, "%s: cur="PFX", requested="PFX"\n",
@@ -3115,6 +3126,7 @@ emulate_app_brk(dcontext_t *dcontext, byte *new_val)
         app_brk_cur = new_val;
     } else {
         /* Expand */
+        YPHPRINT("Expand: old_sz %lx, new_sz %lx", app_brk_end - app_brk_map, new_val - app_brk_map);
         byte *remap = (byte *)
             dynamorio_syscall(SYS_mremap, 4, app_brk_map,
                               app_brk_end - app_brk_map,
@@ -3130,6 +3142,8 @@ emulate_app_brk(dcontext_t *dcontext, byte *new_val)
     }
     if (app_brk_cur != old_brk)
         handle_app_brk(dcontext, app_brk_map, old_brk, app_brk_cur);
+
+    YPHPRINT("End");
     return app_brk_cur;
 }
 #endif /* LINUX */
@@ -5228,7 +5242,7 @@ ignorable_system_call_normalized(int num)
         ret = true;
     }
 
-    YPHPRINT("End: syscall=%d is %s", num, ret? "non-ignored" : "ignored");
+    YPHPRINT("End: syscall=%d is %s", num, ret? "ignored" : "non-ignored");
 
     return ret;
 }
@@ -7078,6 +7092,7 @@ pre_system_call(dcontext_t *dcontext)
 #endif
 #ifdef LINUX
     case SYS_brk: {
+        YPHPRINT("Begin: case SYS_brk");
         if (DYNAMO_OPTION(emulate_brk)) {
             /* i#1004: emulate brk via a separate mmap */
             byte *new_val = (byte *) sys_param(dcontext, 0);
@@ -7092,6 +7107,7 @@ pre_system_call(dcontext_t *dcontext)
             DODEBUG(dcontext->sys_param0 = (reg_t) sys_param(dcontext, 0););
             dcontext->sys_param1 = dynamorio_syscall(SYS_brk, 1, 0);
         }
+        YPHPRINT("End: case SYS_brk");
         break;
     }
 # ifdef SYS_uselib

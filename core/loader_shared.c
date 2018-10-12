@@ -151,6 +151,7 @@ loader_exit(void)
     while (modlist != NULL)
         privload_unload(modlist);
     /* os related loader finalization */
+    YPHPRINT("->os_loader_exit(), os related loader finalization");
     os_loader_exit();
     vmvector_delete_vector(GLOBAL_DCONTEXT, modlist_areas);
     release_recursive_lock(&privload_lock);

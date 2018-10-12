@@ -843,6 +843,7 @@ fcache_reset_init(void)
 void
 fcache_init()
 {
+    YPHPRINT("Allocate code cache");
     ASSERT(offsetof(fragment_t, flags) == offsetof(empty_slot_t, flags));
     DOCHECK(1, {
         /* ensure flag in ushort is at same spot as in uint */
