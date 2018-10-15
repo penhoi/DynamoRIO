@@ -442,6 +442,7 @@ unset_initial_crash_handlers(dcontext_t *dcontext)
 void
 signal_init(void)
 {
+    YPHPRINT("Begin: be care of the signal handling hieracy");
     kernel_sigset_t set;
     IF_LINUX(IF_X86_64(ASSERT(ALIGNED(offsetof(sigpending_t, xstate), AVX_ALIGNMENT))));
     IF_MACOS(ASSERT(sizeof(kernel_sigset_t) == sizeof(__darwin_sigset_t)));
@@ -456,6 +457,7 @@ signal_init(void)
      * to intercept timer signals, etc. before we're ready to handle them,
      * so we do a partial init.
      */
+    YPHPRINT("->signal_info_init_sigaction(..)");
     signal_info_init_sigaction(GLOBAL_DCONTEXT, &init_info);
     intercept_signal(GLOBAL_DCONTEXT, &init_info, SIGSEGV);
     intercept_signal(GLOBAL_DCONTEXT, &init_info, SIGBUS);
@@ -466,6 +468,7 @@ signal_init(void)
 
     IF_LINUX(signalfd_init());
     signal_arch_init();
+    YPHPRINT("End");
 }
 
 void
@@ -775,12 +778,13 @@ set_app_lib_tls_base_from_clone_record(dcontext_t *dcontext, void *record)
 static void
 signal_info_init_sigaction(dcontext_t *dcontext, thread_sig_info_t *info)
 {
+    YPHPRINT("Intercept App's signal handlers");
     info->app_sigaction = (kernel_sigaction_t **)
         handler_alloc(dcontext, SIGARRAY_SIZE * sizeof(kernel_sigaction_t *));
     memset(info->app_sigaction, 0, SIGARRAY_SIZE * sizeof(kernel_sigaction_t *));
     memset(&info->restorer_valid, -1, SIGARRAY_SIZE * sizeof(info->restorer_valid[0]));
-    info->we_intercept = (bool *)
-        handler_alloc(dcontext, SIGARRAY_SIZE * sizeof(bool));
+
+    info->we_intercept = (bool *) handler_alloc(dcontext, SIGARRAY_SIZE * sizeof(bool));
     memset(info->we_intercept, 0, SIGARRAY_SIZE * sizeof(bool));
 }
 
@@ -789,6 +793,7 @@ static void
 signal_info_exit_sigaction(dcontext_t *dcontext, thread_sig_info_t *info,
                            bool other_thread)
 {
+    YPHPRINT("Cleanup info's app_sigaction and we_intercept entries");
     int i;
     kernel_sigaction_t act;
     memset(&act, 0, sizeof(act));
@@ -809,15 +814,16 @@ signal_info_exit_sigaction(dcontext_t *dcontext, thread_sig_info_t *info,
                 LOG(THREAD, LOG_ASYNCH, 2, "\trestoring "PFX" as handler for %d\n",
                     info->app_sigaction[i]->handler, i);
                 sigaction_syscall(i, info->app_sigaction[i], NULL);
-            } else if (info->we_intercept[i]) {
+            }
+            else if (info->we_intercept[i]) {
                 /* restore to default */
                 LOG(THREAD, LOG_ASYNCH, 2, "\trestoring SIG_DFL as handler for %d\n", i);
                 sigaction_syscall(i, &act, NULL);
             }
         }
+
         if (info->app_sigaction[i] != NULL) {
-            handler_free(dcontext, info->app_sigaction[i],
-                         sizeof(kernel_sigaction_t));
+            handler_free(dcontext, info->app_sigaction[i], sizeof(kernel_sigaction_t));
         }
     }
     handler_free(dcontext, info->app_sigaction,
@@ -1314,6 +1320,7 @@ signal_thread_exit(dcontext_t *dcontext, bool other_thread)
 void
 set_handler_sigact(kernel_sigaction_t *act, int sig, handler_t handler)
 {
+    YPHPRINT("Initialize the *act* structure with handler *handler*");
     act->handler = handler;
 #ifdef MACOS
     /* This is the real target */
@@ -1361,6 +1368,7 @@ set_handler_sigact(kernel_sigaction_t *act, int sig, handler_t handler)
 static void
 set_our_handler_sigact(kernel_sigaction_t *act, int sig)
 {
+    YPHPRINT("->set_handler_sigact(act, sig, master_signal_handler), just initialization");
     set_handler_sigact(act, sig, (handler_t) master_signal_handler);
 }
 
@@ -1368,6 +1376,7 @@ static void
 set_handler_and_record_app(dcontext_t *dcontext, thread_sig_info_t *info, int sig,
                            kernel_sigaction_t *act)
 {
+    YPHPRINT("Begin: invoke sigaction to install the signal-handler for sig:%d", sig);
     int rc;
     kernel_sigaction_t oldact;
     ASSERT(sig <= MAX_SIGNUM);
@@ -1384,6 +1393,7 @@ set_handler_and_record_app(dcontext_t *dcontext, thread_sig_info_t *info, int si
     if (rc != 0) /* be defensive: app will probably still work */
         return;
 
+    YPHPRINT("fixme: using SGXSDK handler?");
     if (oldact.handler != (handler_t) SIG_DFL &&
         oldact.handler != (handler_t) master_signal_handler) {
         /* save the app's action for sig */
@@ -1399,27 +1409,35 @@ set_handler_and_record_app(dcontext_t *dcontext, thread_sig_info_t *info, int si
         }
         info->app_sigaction[sig] = (kernel_sigaction_t *)
             handler_alloc(dcontext, sizeof(kernel_sigaction_t));
+
+        YPHPRINT("Save the oldact");
         memcpy(info->app_sigaction[sig], &oldact, sizeof(kernel_sigaction_t));
+
         /* clear cache */
         info->restorer_valid[sig] = -1;
-        if (info->shared_app_sigaction)
+        if (info->shared_app_sigaction) {
             mutex_unlock(info->shared_lock);
+        }
+
 #ifdef DEBUG
         if (oldact.handler == (handler_t) SIG_IGN) {
             LOG(THREAD, LOG_ASYNCH, 2,
                 "app already installed SIG_IGN as sigaction for signal %d\n", sig);
-        } else {
+        }
+        else {
             LOG(THREAD, LOG_ASYNCH, 2,
                 "app already installed "PFX" as sigaction flags=0x%x for signal %d\n",
                 oldact.handler, oldact.flags, sig);
         }
 #endif
-    } else {
+    }
+    else {
         LOG(THREAD, LOG_ASYNCH, 2,
             "prior handler is "PFX" vs master "PFX" with flags=0x%x for signal %d\n",
             oldact.handler, master_signal_handler, oldact.flags, sig);
     }
     LOG(THREAD, LOG_ASYNCH, 3, "\twe intercept signal %d\n", sig);
+    YPHPRINT("End");
 }
 
 /* Set up master_signal_handler as the handler for signal "sig",
@@ -1430,10 +1448,12 @@ set_handler_and_record_app(dcontext_t *dcontext, thread_sig_info_t *info, int si
 static void
 intercept_signal(dcontext_t *dcontext, thread_sig_info_t *info, int sig)
 {
+    YPHPRINT("Begin: Set up master_signal_handler as the handler for signal %s for the current thread", sig);
     kernel_sigaction_t act;
     ASSERT(sig <= MAX_SIGNUM);
     set_our_handler_sigact(&act, sig);
     set_handler_and_record_app(dcontext, info, sig, &act);
+    YPHPRINT("End");
 }
 
 static void
